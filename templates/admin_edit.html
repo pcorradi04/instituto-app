@@ -3,234 +3,402 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Editando: {{ post['title'] }} — Panel admin</title>
+<title>Editando: {{ post['title'] }}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='charts.js') }}"></script>
 </head>
-<body class="admin">
-<div class="admin-bar">
-  <div><b>Instituto de Energía</b> — Editando post</div>
-  <div>
-    <a href="{{ url_for('show_post', slug=post['slug']) }}" target="_blank">Vista previa ↗</a>
-    <a href="{{ url_for('admin_dashboard') }}">← Todos los posts</a>
+<body class="editor">
+
+<div class="editor-bar">
+  <a href="{{ url_for('admin_dashboard') }}">← Todos los posts</a>
+  <span class="status-pill {{ post['status'] }}">{{ 'Publicado' if post['status']=='published' else 'Borrador' }}</span>
+  <span class="save-state" id="saveState">Guardado</span>
+  <span class="spacer"></span>
+  <span class="swatches" id="swatches" title="Color de acento del post"></span>
+  <a id="previewLink" href="{{ url_for('show_post', slug=post['slug']) }}" target="_blank">Ver post ↗</a>
+  <button class="btn secondary" type="button" id="btnSave" title="Ctrl+S">Guardar</button>
+  <button class="btn" type="button" id="btnPublish">{{ 'Despublicar' if post['status']=='published' else '✓ Publicar' }}</button>
+  <form method="post" id="publishForm" action="{{ url_for('admin_toggle_publish', post_id=post['id']) }}" style="display:none;">
+    <input type="hidden" name="next" value="{{ url_for('admin_edit_post', post_id=post['id']) }}">
+  </form>
+</div>
+
+<div class="page" id="page" style="--accent:{{ accent_hex }}">
+
+<div class="brand-bar">
+  <div class="blogtag">Blog del <b>Instituto de Energía</b></div>
+  <div class="search-wrap"><span class="icon"></span><input type="text" placeholder="Buscar post..." disabled></div>
+  <div class="logos">
+    <img class="inst-logo" src="{{ url_for('static', filename='img/logo-header.png') }}" alt="Universidad Austral — Instituto de Energía">
   </div>
 </div>
-<div class="admin-wrap">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      {% for category, msg in messages %}
-        <div class="flash {{ 'error' if category=='error' else 'ok' }}">{{ msg }}</div>
-      {% endfor %}
-    {% endif %}
-  {% endwith %}
 
-  <h1>{{ post['title'] }}
-    <span class="status-pill {{ post['status'] }}">{{ 'Publicado' if post['status']=='published' else 'Borrador' }}</span>
-  </h1>
+<div class="editor-hint">Esto es el post tal como lo van a ver los lectores. Hacé click en cualquier texto para escribirlo ahí mismo; los bloques se agregan con los botones de abajo. Guardá con el botón de arriba o con Ctrl+S.</div>
 
-  <form method="post" action="{{ url_for('admin_toggle_publish', post_id=post['id']) }}" style="margin-bottom:20px;">
-    <button class="btn" type="submit">{{ 'Despublicar' if post['status']=='published' else '✓ Publicar este post' }}</button>
-  </form>
-
-  <div class="admin-card">
-    <h3 style="margin-top:0; font-family:Georgia,serif;">Datos generales</h3>
-    <form method="post" action="{{ url_for('admin_update_post', post_id=post['id']) }}">
-      <div class="field">
-        <label>Título</label>
-        <input type="text" name="title" value="{{ post['title'] }}">
-      </div>
-      <div class="field">
-        <label>Etiqueta / categoría (arriba del título)</label>
-        <input type="text" name="eyebrow" value="{{ post['eyebrow'] }}" placeholder="Ej: Comercio Exterior">
-      </div>
-      <div class="field">
-        <label>Copete / resumen (debajo del título)</label>
-        <textarea name="dek">{{ post['dek'] }}</textarea>
-      </div>
-      <div class="field">
-        <label>Color de acento</label>
-        <select name="accent">
-          {% for key, a in accents.items() %}
-          <option value="{{ key }}" {{ 'selected' if post['accent']==key else '' }}>{{ a.label }}</option>
-          {% endfor %}
-        </select>
-        <div class="hint">Paleta fija del Instituto — no se puede elegir un color libre, a propósito.</div>
-      </div>
-      <button class="btn" type="submit">Guardar datos generales</button>
-    </form>
-  </div>
-
-  <h2 id="blocks" style="font-family:Georgia,serif; margin-top:36px;">Contenido del post</h2>
-  <p class="hint" style="margin-bottom:16px;">El orden de estos bloques es el orden en que aparecen en el post. Los bloques "Título de sección" se numeran solos (I, II, III...).</p>
-
-  {% for b in blocks %}
-  <div class="block">
-    <div class="block-head">
-      <span class="type-badge">{{ b.type }}</span>
-      <div class="block-actions">
-        <form method="post" action="{{ url_for('admin_move_block', post_id=post['id'], block_id=b['id'], direction='up') }}" style="display:inline;">
-          <button class="btn small secondary" type="submit">↑</button>
-        </form>
-        <form method="post" action="{{ url_for('admin_move_block', post_id=post['id'], block_id=b['id'], direction='down') }}" style="display:inline;">
-          <button class="btn small secondary" type="submit">↓</button>
-        </form>
-        <form method="post" action="{{ url_for('admin_delete_block', post_id=post['id'], block_id=b['id']) }}" style="display:inline;" onsubmit="return confirm('¿Borrar este bloque?');">
-          <button class="btn small danger" type="submit">Borrar</button>
-        </form>
-      </div>
-    </div>
-
-    <form method="post" enctype="multipart/form-data" action="{{ url_for('admin_update_block', post_id=post['id'], block_id=b['id']) }}">
-      {% if b.type == 'heading' %}
-        <div class="field"><label>Etiqueta (small caps, al lado del numeral)</label><input type="text" name="tag" value="{{ b.data.tag }}"></div>
-        <div class="field"><label>Título de la sección</label><input type="text" name="title" value="{{ b.data.title }}"></div>
-
-      {% elif b.type == 'paragraph' %}
-        <div class="field">
-          <label>Texto</label>
-          <textarea name="text" style="min-height:120px;">{{ b.data.text }}</textarea>
-          <div class="hint">Podés usar **negrita** y *itálica*. Línea en blanco = párrafo nuevo.</div>
-        </div>
-
-      {% elif b.type == 'callout' %}
-        <div class="field">
-          <label>Color</label>
-          <select name="color">
-            <option value="orange" {{ 'selected' if b.data.color=='orange' else '' }}>Naranja</option>
-            <option value="navy" {{ 'selected' if b.data.color=='navy' else '' }}>Navy</option>
-            <option value="maroon" {{ 'selected' if b.data.color=='maroon' else '' }}>Granate</option>
-          </select>
-        </div>
-        <div class="field"><label>Texto</label><textarea name="text">{{ b.data.text }}</textarea></div>
-
-      {% elif b.type == 'image' %}
-        {% if b.data.url %}
-        <div class="field">
-          <img src="{{ b.data.url }}" alt="" style="max-height:140px; max-width:100%; display:block; border:1px solid var(--line); background:#fff;">
-        </div>
-        {% endif %}
-        <div class="field">
-          <label>Reemplazar por otro archivo</label>
-          <input type="file" name="file" accept=".png,.jpg,.jpeg,.gif,.webp,image/png,image/jpeg,image/gif,image/webp">
-          <div class="hint">PNG, JPG, GIF o WebP, hasta 10 MB. Si no elegís nada, se conserva la imagen actual.</div>
-        </div>
-        <div class="field"><label>URL de la imagen</label><input type="text" name="url" value="{{ b.data.url }}"></div>
-        <div class="field"><label>Epígrafe / fuente</label><input type="text" name="caption" value="{{ b.data.caption }}"></div>
-
-      {% elif b.type == 'chart' %}
-        <div class="field">
-          <label>Tipo de gráfico</label>
-          <select name="chart_type">
-            {% for key, label in chart_types.items() %}
-            <option value="{{ key }}" {{ 'selected' if b.data.chart_type==key else '' }}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field"><label>Título del gráfico</label><input type="text" name="title" value="{{ b.data.title }}"></div>
-        <div class="field"><label>Subtítulo</label><input type="text" name="subtitle" value="{{ b.data.subtitle }}"></div>
-        <div class="field"><label>Fuente</label><input type="text" name="source" value="{{ b.data.source }}"></div>
-        <div class="field">
-          <label>Color principal</label>
-          <select name="color">
-            {% for key, a in accents.items() %}
-            <option value="{{ key }}" {{ 'selected' if b.data.color==key else '' }}>{{ a.label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label>Nombres de las series (separados por coma)</label>
-          <input type="text" name="series_names" value="{{ b.data.series_names|join(', ') }}" placeholder="Energía, INDEC">
-        </div>
-        <div class="field">
-          <label>Datos — una fila por línea: Etiqueta | valor1 | valor2</label>
-          <textarea name="table" style="min-height:120px;">{{ b.table_text }}</textarea>
-          <div class="hint">Ejemplo: <span class="mono">Mayo 2026 | 959.1 | 1172</span></div>
-        </div>
-      {% endif %}
-      <button class="btn small" type="submit">Guardar bloque</button>
-    </form>
-  </div>
-  {% else %}
-  <p class="hint">Todavía no hay bloques. Agregá el primero abajo.</p>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, msg in messages %}
+    <div class="flash {{ 'error' if category=='error' else 'ok' }}">{{ msg }}</div>
   {% endfor %}
+{% endwith %}
 
-  <div class="admin-card">
-    <h3 style="margin-top:0; font-family:Georgia,serif;">+ Agregar bloque</h3>
-    <div class="field">
-      <label>Tipo de bloque</label>
-      <select id="newBlockType" onchange="showBlockForm(this.value)">
-        <option value="heading">Título de sección</option>
-        <option value="paragraph">Párrafo</option>
-        <option value="callout">Callout / destacado</option>
-        <option value="chart">Gráfico</option>
-        <option value="image">Imagen</option>
-      </select>
-    </div>
+<div class="hero">
+  <div class="eyebrow"><input class="ed" id="fEyebrow" maxlength="80" placeholder="Etiqueta / categoría (ej: Comercio Exterior)"></div>
+  <h1><textarea class="ed" id="fTitle" rows="1" placeholder="Título del post"></textarea></h1>
+  <p class="lede"><textarea class="ed" id="fDek" rows="1" placeholder="Copete / resumen: dos o tres líneas que cuenten de qué va el post (opcional)."></textarea></p>
+</div>
 
-    <form method="post" enctype="multipart/form-data" action="{{ url_for('admin_add_block', post_id=post['id']) }}">
-      <input type="hidden" name="type" id="typeField" value="heading">
-
-      <div id="form-heading" class="block-form">
-        <div class="field"><label>Etiqueta</label><input type="text" name="heading_tag" placeholder="Ej: FUENTE ÚNICA"></div>
-        <div class="field"><label>Título de la sección</label><input type="text" name="heading_title"></div>
-      </div>
-
-      <div id="form-paragraph" class="block-form" style="display:none;">
-        <div class="field"><label>Texto</label><textarea name="paragraph_text" style="min-height:120px;"></textarea></div>
-      </div>
-
-      <div id="form-callout" class="block-form" style="display:none;">
-        <div class="field"><label>Color</label>
-          <select name="callout_color"><option value="orange">Naranja</option><option value="navy">Navy</option><option value="maroon">Granate</option></select>
-        </div>
-        <div class="field"><label>Texto</label><textarea name="callout_text"></textarea></div>
-      </div>
-
-      <div id="form-chart" class="block-form" style="display:none;">
-        <div class="field"><label>Tipo de gráfico</label>
-          <select name="chart_chart_type">
-            {% for key, label in chart_types.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field"><label>Título</label><input type="text" name="chart_title"></div>
-        <div class="field"><label>Subtítulo</label><input type="text" name="chart_subtitle"></div>
-        <div class="field"><label>Fuente</label><input type="text" name="chart_source"></div>
-        <div class="field"><label>Color principal</label>
-          <select name="chart_color">{% for key, a in accents.items() %}<option value="{{ key }}">{{ a.label }}</option>{% endfor %}</select>
-        </div>
-        <div class="field"><label>Nombres de series (coma)</label><input type="text" name="chart_series_names" placeholder="Energía, INDEC"></div>
-        <div class="field"><label>Datos — Etiqueta | valor1 | valor2 (una fila por línea)</label>
-          <textarea name="chart_table" style="min-height:120px;" placeholder="Mayo 2026 | 959.1 | 1172&#10;Junio 2026 | 401.3 | 918"></textarea>
-        </div>
-      </div>
-
-      <div id="form-image" class="block-form" style="display:none;">
-        <div class="field">
-          <label>Subir una imagen desde tu computadora</label>
-          <input type="file" name="image_file" accept=".png,.jpg,.jpeg,.gif,.webp,image/png,image/jpeg,image/gif,image/webp">
-          <div class="hint">PNG, JPG, GIF o WebP, hasta 10 MB. Queda guardada en el servidor junto con el post.</div>
-        </div>
-        <div class="field"><label>O pegar la URL de una imagen que ya está en internet</label><input type="text" name="image_url" placeholder="https://..."></div>
-        <div class="field"><label>Epígrafe / fuente</label><input type="text" name="image_caption"></div>
-      </div>
-
-      <button class="btn" type="submit">+ Agregar este bloque</button>
-    </form>
+<main>
+<section style="border-bottom:none;">
+  <div id="blocks"></div>
+  <div class="add-bar">
+    <span>+ Agregar:</span>
+    <button type="button" data-add="heading">Título de sección</button>
+    <button type="button" data-add="paragraph">Párrafo</button>
+    <button type="button" data-add="callout">Destacado</button>
+    <button type="button" data-add="chart">Gráfico</button>
+    <button type="button" data-add="image">Imagen</button>
   </div>
+</section>
+</main>
+
+<footer>
+  <img class="footer-logo" src="{{ url_for('static', filename='img/logo-footer.png') }}" alt="Instituto de Energía — Universidad Austral">
+  Instituto de Energía — Universidad Austral.
+</footer>
+
 </div>
 
 <script>
-function showBlockForm(type){
-  document.querySelectorAll('.block-form').forEach(el => {
-    el.style.display = 'none';
-    el.querySelectorAll('input, select, textarea').forEach(f => f.disabled = true);
+const INITIAL = {{ editor | tojson }};
+const ACCENTS = {{ accents | tojson }};
+const CHART_TYPES = {{ chart_types | tojson }};
+const SAVE_URL = "{{ url_for('admin_save_post', post_id=post['id']) }}";
+const UPLOAD_URL = "{{ url_for('admin_upload') }}";
+</script>
+<script>
+(function () {
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const ACCENT_HEX = Object.fromEntries(Object.entries(ACCENTS).map(([k, v]) => [k, v.hex]));
+  const page = $('#page');
+  const container = $('#blocks');
+  const saveState = $('#saveState');
+  const previewLink = $('#previewLink');
+
+  // ---- estado: lo que se manda al servidor al guardar --------------------
+  const state = {
+    title: INITIAL.title || '', eyebrow: INITIAL.eyebrow || '', dek: INITIAL.dek || '',
+    accent: INITIAL.accent || 'blue', blocks: [],
+  };
+  let seq = 0;
+  const uid = () => 'b' + (++seq);
+  INITIAL.blocks.forEach(b => state.blocks.push({ uid: uid(), type: b.type, data: Object.assign({}, b.data) }));
+
+  let isDirty = false, saving = false;
+  function dirty() {
+    if (isDirty) return;
+    isDirty = true;
+    saveState.textContent = 'Cambios sin guardar';
+    saveState.className = 'save-state dirty';
+  }
+  function setSaved(msg) { isDirty = false; saveState.textContent = msg; saveState.className = 'save-state'; }
+
+  // ---- helpers ------------------------------------------------------------
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+  function grow(t) { if (t.tagName !== 'TEXTAREA') return; t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
+  function growAll(root) { (root || document).querySelectorAll('textarea.ed').forEach(grow); }
+  function roman(i) { const R = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV']; return R[i] || String(i + 1); }
+  function noEnter(t) { t.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); }); }
+  // Conecta un campo con una propiedad del estado: muestra el valor y lo
+  // actualiza al escribir.
+  function bind(input, obj, key, after) {
+    input.value = obj[key] || '';
+    input.addEventListener('input', () => { obj[key] = input.value; dirty(); grow(input); if (after) after(); });
+  }
+
+  // ---- datos generales (hero) --------------------------------------------
+  bind($('#fEyebrow'), state, 'eyebrow');
+  bind($('#fTitle'), state, 'title', () => { document.title = 'Editando: ' + (state.title || 'Sin título'); });
+  bind($('#fDek'), state, 'dek');
+  noEnter($('#fTitle'));
+
+  // ---- color de acento ----------------------------------------------------
+  const sw = $('#swatches');
+  Object.entries(ACCENTS).forEach(([key, a]) => {
+    const b = el(`<button type="button" class="swatch" title="${esc(a.label)}" style="background:${a.hex}"></button>`);
+    b.addEventListener('click', () => { state.accent = key; applyAccent(); dirty(); });
+    sw.appendChild(b);
   });
-  const active = document.getElementById('form-' + type);
-  active.style.display = 'block';
-  active.querySelectorAll('input, select, textarea').forEach(f => f.disabled = false);
-  document.getElementById('typeField').value = type;
-}
-showBlockForm(document.getElementById('newBlockType').value);
+  function applyAccent() {
+    page.style.setProperty('--accent', ACCENT_HEX[state.accent] || ACCENT_HEX.blue);
+    const keys = Object.keys(ACCENTS);
+    sw.querySelectorAll('.swatch').forEach((b, i) => b.classList.toggle('on', keys[i] === state.accent));
+  }
+  applyAccent();
+
+  // ---- bloques ------------------------------------------------------------
+  const LABEL = { heading: 'Título de sección', paragraph: 'Párrafo', callout: 'Destacado', chart: 'Gráfico', image: 'Imagen' };
+  const DEFAULTS = {
+    heading: () => ({ tag: '', title: '' }),
+    paragraph: () => ({ text: '' }),
+    callout: () => ({ color: 'orange', text: '' }),
+    chart: () => ({ chart_type: 'bar_comparison', title: '', subtitle: '', source: '', color: 'orange', series_names: '', table: '' }),
+    image: () => ({ url: '', caption: '' }),
+  };
+
+  function idx(b) { return state.blocks.indexOf(b); }
+  function move(b, d) {
+    const i = idx(b), j = i + d;
+    if (j < 0 || j >= state.blocks.length) return;
+    state.blocks.splice(i, 1); state.blocks.splice(j, 0, b);
+    dirty(); renderAll();
+    const n = container.querySelector(`[data-uid="${b.uid}"]`);
+    if (n) n.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  // Barra de controles que aparece al pasar el mouse por un bloque.
+  function tools(b, extra) {
+    const t = el(`<div class="blk-tools"><span class="lbl">${LABEL[b.type]}</span></div>`);
+    if (extra) t.appendChild(extra);
+    const up = el('<button type="button" title="Subir">↑</button>');
+    const down = el('<button type="button" title="Bajar">↓</button>');
+    const del = el('<button type="button" class="del" title="Borrar bloque">✕</button>');
+    up.addEventListener('click', () => move(b, -1));
+    down.addEventListener('click', () => move(b, +1));
+    del.addEventListener('click', () => {
+      if (!confirm('¿Borrar este bloque?')) return;
+      state.blocks.splice(idx(b), 1); dirty(); renderAll();
+    });
+    t.append(up, down, del);
+    return t;
+  }
+  // Botones B / I: envuelven el texto seleccionado con ** o *.
+  function fmtButtons(ta) {
+    const wrap = el('<span class="fmt"></span>');
+    [['B', '**', 'Negrita'], ['I', '*', 'Itálica']].forEach(([lab, mark, title]) => {
+      const tag = lab === 'B' ? 'b' : 'i';
+      const btn = el(`<button type="button" title="${title}"><${tag}>${lab}</${tag}></button>`);
+      btn.addEventListener('mousedown', e => e.preventDefault());  // no perder la selección
+      btn.addEventListener('click', () => {
+        const s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
+        const sel = v.slice(s, e) || 'texto';
+        ta.value = v.slice(0, s) + mark + sel + mark + v.slice(e);
+        ta.focus();
+        ta.setSelectionRange(s + mark.length, s + mark.length + sel.length);
+        ta.dispatchEvent(new Event('input'));
+      });
+      wrap.appendChild(btn);
+    });
+    return wrap;
+  }
+
+  const RENDER = {
+    heading(b, romanTxt) {
+      const n = el(`<div class="blk" data-uid="${b.uid}">
+        <div class="section-marker"><span class="num">${romanTxt}</span><span class="tag" style="flex:1"><input class="ed" placeholder="Etiqueta de la sección (opcional)"></span></div>
+        <h2><textarea class="ed" rows="1" placeholder="Título de la sección"></textarea></h2></div>`);
+      n.prepend(tools(b));
+      bind(n.querySelector('input'), b.data, 'tag');
+      const ta = n.querySelector('textarea');
+      bind(ta, b.data, 'title'); noEnter(ta);
+      return n;
+    },
+    paragraph(b) {
+      const n = el(`<div class="blk" data-uid="${b.uid}"><div class="block-p"><textarea class="ed p-ed" rows="2" placeholder="Escribí el párrafo acá. Línea en blanco = párrafo nuevo. Seleccioná texto y tocá B o I para negrita o itálica."></textarea></div></div>`);
+      const ta = n.querySelector('textarea');
+      bind(ta, b.data, 'text');
+      n.prepend(tools(b, fmtButtons(ta)));
+      return n;
+    },
+    callout(b) {
+      const n = el(`<div class="blk" data-uid="${b.uid}"><div class="callout"><textarea class="ed" rows="2" placeholder="Texto destacado: un dato clave, una advertencia, una conclusión."></textarea></div></div>`);
+      const box = n.querySelector('.callout');
+      const paint = () => { box.className = 'callout' + (b.data.color === 'navy' ? ' navy' : (b.data.color === 'maroon' ? ' maroon' : '')); };
+      paint();
+      const ta = n.querySelector('textarea');
+      bind(ta, b.data, 'text');
+      const extra = el('<span class="fmt"></span>');
+      [['orange', 'Naranja'], ['navy', 'Navy'], ['maroon', 'Granate']].forEach(([k, lab]) => {
+        const s = el(`<button type="button" class="sw" title="${lab}" style="background:${ACCENT_HEX[k]}"></button>`);
+        s.classList.toggle('on', b.data.color === k);
+        s.addEventListener('click', () => {
+          b.data.color = k; paint(); dirty();
+          extra.querySelectorAll('.sw').forEach(x => x.classList.toggle('on', x === s));
+        });
+        extra.appendChild(s);
+      });
+      extra.appendChild(fmtButtons(ta));
+      n.prepend(tools(b, extra));
+      return n;
+    },
+    chart(b) {
+      const d = b.data;
+      const typeOpts = Object.entries(CHART_TYPES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+      const colorOpts = Object.entries(ACCENTS).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+      const n = el(`<div class="blk" data-uid="${b.uid}"><div class="chart-card">
+        <h3><input class="ed" placeholder="Título del gráfico"></h3>
+        <div class="sub"><input class="ed" placeholder="Subtítulo: unidad, período, aclaración (opcional)"></div>
+        <div class="chart-wrap"><canvas></canvas></div>
+        <div class="chart-empty" hidden>Cargá los datos acá abajo y el gráfico aparece en este lugar.</div>
+        <div class="chart-source">Fuente: <input class="ed inline" placeholder="Secretaría de Energía; INDEC"></div>
+        <div class="chart-data">
+          <div class="row">
+            <label>Tipo</label><select class="ctype">${typeOpts}</select>
+            <label>Color</label><select class="ccolor">${colorOpts}</select>
+            <label>Series</label><input type="text" class="cnames" placeholder="Nombres de las series, separados por coma: Energía, INDEC">
+          </div>
+          <textarea class="ctable" placeholder="Una fila por línea: Etiqueta | valor serie 1 | valor serie 2&#10;Mayo 2026 | 959.1 | 1172&#10;Junio 2026 | 401.3 | 918"></textarea>
+          <div class="hint">El gráfico se redibuja solo mientras escribís. Si falta un dato, dejá el valor vacío.</div>
+        </div></div></div>`);
+      n.prepend(tools(b));
+      const [inTitle, inSub, inSrc] = n.querySelectorAll('input.ed');
+      bind(inTitle, d, 'title'); bind(inSub, d, 'subtitle'); bind(inSrc, d, 'source');
+      const selType = n.querySelector('.ctype'), selColor = n.querySelector('.ccolor');
+      selType.value = d.chart_type || 'bar_comparison';
+      selColor.value = d.color || 'orange';
+      let timer = null;
+      const redraw = () => { clearTimeout(timer); timer = setTimeout(() => drawChart(n, d), 150); };
+      selType.addEventListener('change', () => { d.chart_type = selType.value; dirty(); redraw(); });
+      selColor.addEventListener('change', () => { d.color = selColor.value; dirty(); redraw(); });
+      bind(n.querySelector('.cnames'), d, 'series_names', redraw);
+      bind(n.querySelector('.ctable'), d, 'table', redraw);
+      return n;
+    },
+    image(b) {
+      const d = b.data;
+      const n = el(`<div class="blk" data-uid="${b.uid}"><div class="chart-card">
+        <div class="img-area"></div>
+        <div class="chart-source"><input class="ed" placeholder="Epígrafe / fuente de la imagen (opcional)"></div>
+        <div class="img-url">URL: <input type="text" placeholder="o pegá la dirección de una imagen que ya está en internet"></div>
+        <div class="blk-msg" hidden></div>
+      </div></div>`);
+      n.prepend(tools(b));
+      bind(n.querySelector('input.ed'), d, 'caption');
+      const area = n.querySelector('.img-area'), msg = n.querySelector('.blk-msg');
+      const inUrl = n.querySelector('.img-url input');
+      inUrl.value = d.url || '';
+      inUrl.addEventListener('change', () => { d.url = inUrl.value.trim(); dirty(); paintImage(); });
+      const fileInput = el('<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">');
+      fileInput.addEventListener('change', () => { if (fileInput.files[0]) upload(fileInput.files[0]); fileInput.value = ''; });
+      n.appendChild(fileInput);
+
+      function paintImage() {
+        area.innerHTML = '';
+        if (d.url) {
+          area.appendChild(el(`<img src="${esc(d.url)}" alt="" style="width:100%; height:auto; display:block;">`));
+          const change = el('<button type="button" class="btn small secondary img-change">Cambiar imagen</button>');
+          change.addEventListener('click', () => fileInput.click());
+          area.appendChild(change);
+        } else {
+          const drop = el('<label class="img-drop">Hacé click acá para subir una imagen, o arrastrala desde una carpeta<small>PNG, JPG, GIF o WebP, hasta 10 MB</small></label>');
+          drop.addEventListener('click', () => fileInput.click());
+          drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+          drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+          drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) upload(f); });
+          area.appendChild(drop);
+        }
+      }
+      async function upload(file) {
+        msg.hidden = false; msg.textContent = 'Subiendo ' + file.name + '…';
+        const fd = new FormData(); fd.append('file', file);
+        try {
+          const r = await fetch(UPLOAD_URL, { method: 'POST', body: fd });
+          if (r.redirected) throw new Error('Tu sesión expiró. Abrí el panel en otra pestaña, volvé a entrar y probá de nuevo.');
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || !j.url) throw new Error(j.error || ('Error ' + r.status));
+          d.url = j.url; inUrl.value = j.url; dirty(); paintImage(); msg.hidden = true;
+        } catch (e) { msg.textContent = e.message; }
+      }
+      paintImage();
+      return n;
+    },
+  };
+
+  // Misma regla que parse_table() en app.py: "Etiqueta | v1 | v2" por línea;
+  // vacío o no-numérico => sin dato.
+  function parseTable(text) {
+    const rows = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => l.split('|').map(p => p.trim()));
+    if (!rows.length) return { labels: [], series: [] };
+    const labels = rows.map(r => r[0]);
+    const nSeries = Math.max(...rows.map(r => r.length)) - 1;
+    const series = [];
+    for (let i = 0; i < nSeries; i++) {
+      series.push(rows.map(r => { const v = r[i + 1]; if (v === undefined || v === '') return null; const f = Number(v); return isNaN(f) ? null : f; }));
+    }
+    return { labels, series };
+  }
+  function drawChart(node, d) {
+    const wrap = node.querySelector('.chart-wrap'), empty = node.querySelector('.chart-empty'), canvas = node.querySelector('canvas');
+    if (typeof Chart === 'undefined') {
+      wrap.hidden = true; empty.hidden = false;
+      empty.textContent = 'No se pudo cargar la librería de gráficos (¿sin internet?). Los datos se guardan igual y el gráfico se ve en el post.';
+      return;
+    }
+    const { labels, series } = parseTable(d.table);
+    const has = labels.length > 0 && series.length > 0;
+    wrap.hidden = !has; empty.hidden = has;
+    if (!has) return;
+    const names = String(d.series_names || '').split(',').map(s => s.trim()).filter(Boolean);
+    renderPostChart(canvas, { chart_type: d.chart_type, labels, series, series_names: names, color: d.color }, ACCENT_HEX, { animate: false });
+  }
+
+  function renderAll() {
+    if (window.Chart && Chart.getChart) container.querySelectorAll('canvas').forEach(c => { const ch = Chart.getChart(c); if (ch) ch.destroy(); });
+    container.innerHTML = '';
+    if (!state.blocks.length) container.appendChild(el('<p class="editor-empty">El post está vacío: agregá el primer bloque con los botones de acá abajo.</p>'));
+    let h = 0;
+    state.blocks.forEach(b => {
+      const node = RENDER[b.type](b, b.type === 'heading' ? roman(h++) : null);
+      container.appendChild(node);
+      if (b.type === 'chart') drawChart(node, b.data);
+    });
+    growAll(container);
+  }
+
+  document.querySelectorAll('.add-bar button').forEach(btn => btn.addEventListener('click', () => {
+    const type = btn.dataset.add;
+    const b = { uid: uid(), type, data: DEFAULTS[type]() };
+    state.blocks.push(b); dirty(); renderAll();
+    const n = container.querySelector(`[data-uid="${b.uid}"]`);
+    if (n) {
+      n.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const f = n.querySelector('.ed');
+      if (f) f.focus();
+    }
+  }));
+
+  // ---- guardar / publicar -------------------------------------------------
+  async function save() {
+    if (saving) return false;
+    saving = true;
+    saveState.textContent = 'Guardando…'; saveState.className = 'save-state';
+    const payload = { title: state.title, eyebrow: state.eyebrow, dek: state.dek, accent: state.accent,
+                      blocks: state.blocks.map(b => ({ type: b.type, data: b.data })) };
+    try {
+      const r = await fetch(SAVE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (r.redirected) throw new Error('Tu sesión expiró. Abrí el panel en otra pestaña, volvé a entrar, y guardá de nuevo (no cierres esta).');
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || ('Error ' + r.status));
+      previewLink.href = j.post_url;
+      setSaved('Guardado ' + new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }));
+      return true;
+    } catch (e) {
+      saveState.textContent = 'No se pudo guardar'; saveState.className = 'save-state dirty';
+      alert('No se pudo guardar el post.\n\n' + e.message);
+      return false;
+    } finally { saving = false; }
+  }
+  $('#btnSave').addEventListener('click', save);
+  $('#btnPublish').addEventListener('click', async () => { if (await save()) $('#publishForm').submit(); });
+  document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); } });
+  window.addEventListener('beforeunload', e => { if (isDirty) { e.preventDefault(); e.returnValue = ''; } });
+  window.addEventListener('resize', () => growAll());
+
+  renderAll();
+  growAll();
+  requestAnimationFrame(() => growAll());
+})();
 </script>
 </body>
 </html>

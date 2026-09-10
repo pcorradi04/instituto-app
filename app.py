@@ -252,13 +252,6 @@ def get_post_blocks(db, post_id):
     return blocks
 
 
-def next_position(db, post_id):
-    row = db.execute(
-        "SELECT COALESCE(MAX(position), -1) + 1 AS p FROM blocks WHERE post_id = ?", (post_id,)
-    ).fetchone()
-    return row["p"]
-
-
 # ---------------------------------------------------------------------------
 # Imágenes subidas desde el panel
 # ---------------------------------------------------------------------------
@@ -303,7 +296,11 @@ def uploaded_file(filename):
 
 @app.errorhandler(413)
 def upload_too_large(e):
-    flash(f"La imagen es demasiado grande: el máximo es {MAX_UPLOAD_MB} MB.", "error")
+    msg = f"La imagen es demasiado grande: el máximo es {MAX_UPLOAD_MB} MB."
+    if request.path == url_for("admin_upload"):
+        # El editor sube por AJAX y espera JSON.
+        return {"error": msg}, 413
+    flash(msg, "error")
     ref = request.referrer or ""
     return redirect(ref if ref.startswith(request.host_url) else url_for("admin_dashboard"))
 
@@ -328,7 +325,8 @@ def index():
         posts = db.execute(
             "SELECT * FROM posts WHERE status = 'published' ORDER BY published_at DESC"
         ).fetchall()
-    return render_template("index.html", posts=posts, q=q)
+    return render_template("index.html", posts=posts, q=q,
+                           accents_hex={k: v["hex"] for k, v in ACCENTS.items()})
 
 
 @app.route("/post/<slug>")
@@ -355,9 +353,11 @@ def show_post(slug):
         elif b["type"] == "chart":
             chart_defs.append({"id": f"chart-{b['id']}", **b["data"]})
 
+    accent = post["accent"] if post["accent"] in ACCENTS else "blue"
     return render_template(
         "post.html", post=post, blocks=blocks, chart_defs=chart_defs,
-        accents=ACCENTS, accents_hex={k: v["hex"] for k, v in ACCENTS.items()},
+        accent_hex=ACCENTS[accent]["hex"],
+        accents_hex={k: v["hex"] for k, v in ACCENTS.items()},
     )
 
 
@@ -397,49 +397,35 @@ def admin_edit_post(post_id):
     if not post:
         abort(404)
     blocks = get_post_blocks(db, post_id)
+    # El editor visual trabaja con una copia "editable" de cada bloque: igual
+    # a lo guardado, salvo el gráfico, que vuelve a ser texto (la tabla y los
+    # nombres de las series) para poder corregirlo a mano.
+    editable = []
     for b in blocks:
+        data = dict(b["data"])
         if b["type"] == "chart":
-            # reconstruir el texto tabla para reeditar
             rows = []
-            labels = b["data"].get("labels", [])
-            series = b["data"].get("series", [])
-            for i, lab in enumerate(labels):
-                vals = [fmt_num(s[i]) if i < len(s) and s[i] is not None else "" for s in series]
+            for i, lab in enumerate(data.get("labels", [])):
+                vals = [fmt_num(s[i]) if i < len(s) and s[i] is not None else ""
+                        for s in data.get("series", [])]
                 rows.append(" | ".join([lab] + vals))
-            b["table_text"] = "\n".join(rows)
+            data = {
+                "chart_type": data.get("chart_type", "bar_comparison"),
+                "title": data.get("title", ""), "subtitle": data.get("subtitle", ""),
+                "source": data.get("source", ""), "color": data.get("color", "orange"),
+                "series_names": ", ".join(data.get("series_names", [])),
+                "table": "\n".join(rows),
+            }
+        editable.append({"type": b["type"], "data": data})
+    accent = post["accent"] if post["accent"] in ACCENTS else "blue"
+    editor = {
+        "id": post["id"], "title": post["title"], "eyebrow": post["eyebrow"] or "",
+        "dek": post["dek"] or "", "accent": accent, "blocks": editable,
+    }
     return render_template(
-        "admin_edit.html", post=post, blocks=blocks,
-        accents=ACCENTS, chart_types=CHART_TYPES, block_types=BLOCK_TYPES,
+        "admin_edit.html", post=post, editor=editor, accent_hex=ACCENTS[accent]["hex"],
+        accents=ACCENTS, chart_types=CHART_TYPES,
     )
-
-
-@app.route("/admin/posts/<int:post_id>", methods=["POST"])
-@login_required
-def admin_update_post(post_id):
-    db = get_db()
-    post = db.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
-    if not post:
-        abort(404)
-    title = request.form.get("title", "").strip() or post["title"]
-    eyebrow = request.form.get("eyebrow", "").strip()
-    dek = request.form.get("dek", "").strip()
-    accent = request.form.get("accent", "blue")
-    if accent not in ACCENTS:
-        accent = "blue"
-    now = datetime.now(timezone.utc).isoformat()
-    # Mientras el post nunca se publicó, la URL (slug) sigue al título: así un
-    # post creado como "Nuevo post" no queda en /post/nuevo-post para siempre.
-    # Una vez publicado, el slug se congela para no romper links ya compartidos.
-    slug = post["slug"]
-    if not post["published_at"]:
-        slug = unique_slug(db, title, exclude_id=post_id)
-    db.execute(
-        "UPDATE posts SET title=?, slug=?, eyebrow=?, dek=?, accent=?, updated_at=? WHERE id=?",
-        (title, slug, eyebrow, dek, accent, now, post_id),
-    )
-    db.commit()
-    flash("Post actualizado.", "ok")
-    return redirect(url_for("admin_edit_post", post_id=post_id))
 
 
 @app.route("/admin/posts/<int:post_id>/publish", methods=["POST"])
@@ -461,7 +447,12 @@ def admin_toggle_publish(post_id):
         )
         flash("Post publicado.", "ok")
     db.commit()
-    return redirect(url_for("admin_dashboard"))
+    # El editor manda next=<su propia URL> para volver ahí; el dashboard no
+    # manda nada. Solo rutas internas.
+    nxt = request.form.get("next", "")
+    if not nxt.startswith("/") or nxt.startswith("//"):
+        nxt = url_for("admin_dashboard")
+    return redirect(nxt)
 
 
 @app.route("/admin/posts/<int:post_id>/delete", methods=["POST"])
@@ -478,22 +469,13 @@ def admin_delete_post(post_id):
 
 
 # ---------------------------------------------------------------------------
-# Admin — bloques de contenido
+# Admin — guardar el post desde el editor visual
 # ---------------------------------------------------------------------------
 
-def strip_prefix(form, prefix):
-    """Para el formulario de 'agregar bloque', que prefija cada campo con
-    el tipo (chart_title, heading_title, ...) para que nunca puedan
-    pisarse entre si aunque el JS que oculta/deshabilita falle."""
-    plen = len(prefix) + 1
-    out = {}
-    for k in form.keys():
-        if k.startswith(prefix + "_"):
-            out[k[plen:]] = form.get(k)
-    return out
-
-
 def block_data_from_form(block_type, form):
+    """Limpia y valida los datos de un bloque tal como llegan del editor
+    (un dict de strings) y devuelve lo que se guarda en la base. Para el
+    gráfico, convierte la tabla de texto en labels + series numéricas."""
     if block_type == "heading":
         return {"tag": form.get("tag", "").strip(), "title": form.get("title", "").strip()}
     if block_type == "paragraph":
@@ -527,92 +509,69 @@ def block_data_from_form(block_type, form):
     return {}
 
 
-@app.route("/admin/posts/<int:post_id>/blocks", methods=["POST"])
+@app.route("/admin/posts/<int:post_id>/save", methods=["POST"])
 @login_required
-def admin_add_block(post_id):
+def admin_save_post(post_id):
+    """Guarda el post entero desde el editor visual: datos generales y TODOS
+    los bloques, en el orden en que vienen. Recibe JSON y responde JSON.
+    Reemplazar todos los bloques de una vez (en vez de editarlos de a uno)
+    es lo que permite que mover/borrar/agregar en el editor sea instantáneo
+    y que "Guardar" sea un solo paso."""
     db = get_db()
     post = db.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
     if not post:
         abort(404)
-    block_type = request.form.get("type")
-    if block_type not in BLOCK_TYPES:
-        flash("Tipo de bloque inválido.", "error")
-        return redirect(url_for("admin_edit_post", post_id=post_id))
-    data = block_data_from_form(block_type, strip_prefix(request.form, block_type))
-    if block_type == "image":
-        f = request.files.get("image_file")
-        if f and f.filename:
-            try:
-                data["url"] = save_upload(f)
-            except ValueError as e:
-                flash(str(e), "error")
-                return redirect(url_for("admin_edit_post", post_id=post_id) + "#blocks")
-        if not data["url"]:
-            flash("Para agregar una imagen, subí un archivo o pegá una URL.", "error")
-            return redirect(url_for("admin_edit_post", post_id=post_id) + "#blocks")
-    pos = next_position(db, post_id)
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or not isinstance(payload.get("blocks"), list):
+        return {"ok": False, "error": "Datos inválidos."}, 400
+
+    title = str(payload.get("title") or "").strip() or post["title"]
+    eyebrow = str(payload.get("eyebrow") or "").strip()
+    dek = str(payload.get("dek") or "").strip()
+    accent = payload.get("accent") if payload.get("accent") in ACCENTS else "blue"
+
+    blocks = []
+    for raw in payload["blocks"]:
+        if not isinstance(raw, dict) or raw.get("type") not in BLOCK_TYPES:
+            return {"ok": False, "error": "Tipo de bloque inválido."}, 400
+        data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+        # block_data_from_form espera strings: null -> "".
+        data = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        blocks.append((raw["type"], block_data_from_form(raw["type"], data)))
+
+    now = datetime.now(timezone.utc).isoformat()
+    # Mientras el post nunca se publicó, la URL (slug) sigue al título: así un
+    # post creado como "Nuevo post" no queda en /post/nuevo-post para siempre.
+    # Una vez publicado, el slug se congela para no romper links ya compartidos.
+    slug = post["slug"]
+    if not post["published_at"]:
+        slug = unique_slug(db, title, exclude_id=post_id)
     db.execute(
-        "INSERT INTO blocks (post_id, position, type, data) VALUES (?, ?, ?, ?)",
-        (post_id, pos, block_type, json.dumps(data, ensure_ascii=False)),
+        "UPDATE posts SET title=?, slug=?, eyebrow=?, dek=?, accent=?, updated_at=? WHERE id=?",
+        (title, slug, eyebrow, dek, accent, now, post_id),
     )
-    db.execute("UPDATE posts SET updated_at=? WHERE id=?", (datetime.now(timezone.utc).isoformat(), post_id))
+    db.execute("DELETE FROM blocks WHERE post_id = ?", (post_id,))
+    for pos, (btype, data) in enumerate(blocks):
+        db.execute(
+            "INSERT INTO blocks (post_id, position, type, data) VALUES (?, ?, ?, ?)",
+            (post_id, pos, btype, json.dumps(data, ensure_ascii=False)),
+        )
     db.commit()
-    flash("Bloque agregado.", "ok")
-    return redirect(url_for("admin_edit_post", post_id=post_id) + "#blocks")
+    return {"ok": True, "slug": slug, "post_url": url_for("show_post", slug=slug)}
 
 
-@app.route("/admin/posts/<int:post_id>/blocks/<int:block_id>", methods=["POST"])
+@app.route("/admin/upload", methods=["POST"])
 @login_required
-def admin_update_block(post_id, block_id):
-    db = get_db()
-    block = db.execute("SELECT * FROM blocks WHERE id = ? AND post_id = ?", (block_id, post_id)).fetchone()
-    if not block:
-        abort(404)
-    data = block_data_from_form(block["type"], request.form)
-    if block["type"] == "image":
-        f = request.files.get("file")
-        if f and f.filename:
-            try:
-                data["url"] = save_upload(f)
-            except ValueError as e:
-                flash(str(e), "error")
-                return redirect(url_for("admin_edit_post", post_id=post_id) + "#blocks")
-    db.execute("UPDATE blocks SET data = ? WHERE id = ?", (json.dumps(data, ensure_ascii=False), block_id))
-    db.execute("UPDATE posts SET updated_at=? WHERE id=?", (datetime.now(timezone.utc).isoformat(), post_id))
-    db.commit()
-    flash("Bloque actualizado.", "ok")
-    return redirect(url_for("admin_edit_post", post_id=post_id) + "#blocks")
-
-
-@app.route("/admin/posts/<int:post_id>/blocks/<int:block_id>/delete", methods=["POST"])
-@login_required
-def admin_delete_block(post_id, block_id):
-    db = get_db()
-    db.execute("DELETE FROM blocks WHERE id = ? AND post_id = ?", (block_id, post_id))
-    db.commit()
-    return redirect(url_for("admin_edit_post", post_id=post_id) + "#blocks")
-
-
-@app.route("/admin/posts/<int:post_id>/blocks/<int:block_id>/move/<direction>", methods=["POST"])
-@login_required
-def admin_move_block(post_id, block_id, direction):
-    db = get_db()
-    blocks = db.execute(
-        "SELECT id, position FROM blocks WHERE post_id = ? ORDER BY position ASC", (post_id,)
-    ).fetchall()
-    ids = [b["id"] for b in blocks]
-    if block_id not in ids:
-        abort(404)
-    idx = ids.index(block_id)
-    swap_idx = idx - 1 if direction == "up" else idx + 1
-    if 0 <= swap_idx < len(ids):
-        a_id, b_id = ids[idx], ids[swap_idx]
-        pos_a = blocks[idx]["position"]
-        pos_b = blocks[swap_idx]["position"]
-        db.execute("UPDATE blocks SET position = ? WHERE id = ?", (pos_b, a_id))
-        db.execute("UPDATE blocks SET position = ? WHERE id = ?", (pos_a, b_id))
-        db.commit()
-    return redirect(url_for("admin_edit_post", post_id=post_id) + "#blocks")
+def admin_upload():
+    """Sube una imagen desde el editor (AJAX). Responde {"url": ...} o
+    {"error": ...}; el bloque de imagen guarda esa URL al guardar el post."""
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return {"error": "No llegó ningún archivo."}, 400
+    try:
+        return {"url": save_upload(f)}
+    except ValueError as e:
+        return {"error": str(e)}, 400
 
 
 # ---------------------------------------------------------------------------

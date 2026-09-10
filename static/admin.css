@@ -34,3 +34,69 @@ body.admin{font-family:'Courier New',monospace; background:#EFEDE7;}
 .login-box h1{font-family:Georgia,serif; font-size:20px; margin-top:0;}
 
 .field input[type=file]{font-family:'Courier New',monospace;font-size:12.5px;padding:6px 0;}
+
+/* =====================================================================
+   Editor visual (admin_edit.html): es el post mismo, con style.css,
+   pero cada texto es un campo editable que hereda la tipografía del
+   elemento donde está (h1, h2, .tag, .sub, .chart-source...).
+   ===================================================================== */
+body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',serif; padding-top:52px;}
+.editor-bar{position:fixed; top:0; left:0; right:0; z-index:50; height:52px; background:var(--ink); color:#fff; display:flex; align-items:center; gap:14px; padding:0 20px; font-family:'Courier New',monospace; font-size:12.5px; box-shadow:0 2px 8px rgba(0,0,0,.25);}
+.editor-bar a{color:#fff; text-decoration:none; opacity:.85; white-space:nowrap;}
+.editor-bar a:hover{opacity:1; text-decoration:underline;}
+.editor-bar .spacer{flex:1;}
+.editor-bar .save-state{opacity:.75; font-size:11.5px; white-space:nowrap;}
+.editor-bar .save-state.dirty{color:#F3C77A; opacity:1;}
+.editor-bar .btn{padding:7px 14px; white-space:nowrap;}
+.editor-bar .btn.secondary{background:transparent; color:#fff; border:1px solid rgba(255,255,255,.45);}
+.editor-bar .swatches{display:flex; gap:6px; align-items:center; margin-right:6px;}
+.editor-bar .swatch{width:18px; height:18px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0;}
+.editor-bar .swatch.on{border-color:#fff; box-shadow:0 0 0 1px var(--ink);}
+.editor-hint{font-family:'Courier New',monospace; font-size:11.5px; color:var(--ink-soft); background:var(--paper-2); padding:7px 4vw; border-bottom:1px solid var(--line);}
+.editor .flash{margin:12px 4vw 0;}
+
+/* campos editables */
+.ed{font:inherit; color:inherit; letter-spacing:inherit; text-transform:inherit; font-variant:inherit; line-height:inherit; background:transparent; border:0; border-bottom:1px dashed rgba(0,0,0,.18); outline:0; padding:0; margin:0; width:100%; display:block; resize:none; overflow:hidden; border-radius:0;}
+.ed:focus{border-bottom-color:var(--accent, var(--blue)); background:rgba(0,0,204,.035);}
+.ed::placeholder{color:#B9B3A7; opacity:1; font-style:italic; font-weight:400; text-transform:none; letter-spacing:normal; font-variant:normal;}
+.ed.inline{display:inline-block; width:70%; vertical-align:baseline;}
+
+/* bloques */
+.blk{position:relative; padding:8px 10px; margin:0 -10px; border:1px dashed transparent;}
+.blk:hover, .blk:focus-within{border-color:rgba(0,0,204,.22);}
+.blk-tools{position:absolute; top:-13px; right:8px; display:flex; gap:4px; align-items:center; opacity:0; transition:opacity .12s; background:#fff; border:1px solid var(--line); padding:3px 6px; font-family:'Courier New',monospace; font-size:11px; z-index:5;}
+.blk:hover .blk-tools, .blk:focus-within .blk-tools{opacity:1;}
+.blk-tools .lbl{color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-right:6px;}
+.blk-tools button{background:#fff; border:1px solid var(--line); font-family:inherit; font-size:11px; padding:2px 7px; cursor:pointer; color:var(--ink); line-height:1.4;}
+.blk-tools button:hover{background:var(--paper-2);}
+.blk-tools button.del{color:var(--rust);}
+.blk-tools .sw{width:16px; height:16px; border-radius:50%; border:2px solid transparent; padding:0;}
+.blk-tools .sw.on{border-color:var(--ink);}
+.blk-tools .fmt{display:inline-flex; gap:4px; margin-right:6px;}
+.blk .p-ed{min-height:2.6em;}
+.editor-empty{padding:40px 0; color:#B9B3A7; font-style:italic;}
+.blk-msg{font-family:'Courier New',monospace; font-size:11.5px; color:var(--rust); margin-top:6px;}
+
+/* gráfico: panel de datos debajo del canvas */
+.chart-data{margin-top:12px; border-top:1px dashed var(--line); padding-top:10px; font-family:'Courier New',monospace; font-size:12px; color:var(--ink-soft);}
+.chart-data .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px;}
+.chart-data label{font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;}
+.chart-data select, .chart-data input[type=text]{font-family:inherit; font-size:12px; padding:4px 6px; border:1px solid var(--line); background:#fdfdfb;}
+.chart-data input[type=text]{flex:1; min-width:200px;}
+.chart-data textarea{width:100%; min-height:96px; font-family:inherit; font-size:12.5px; padding:8px; border:1px solid var(--line); background:#fdfdfb; resize:vertical; line-height:1.5;}
+.chart-data .hint{font-size:11px; font-style:italic; font-family:Georgia,serif; margin-top:4px;}
+.chart-empty{height:200px; display:flex; align-items:center; justify-content:center; text-align:center; padding:0 20px; color:#B9B3A7; font-style:italic; border:1px dashed var(--line);}
+
+/* imagen */
+.img-area{position:relative;}
+.img-drop{display:block; border:2px dashed var(--line); padding:44px 20px; text-align:center; color:var(--ink-soft); cursor:pointer; background:#fdfdfb; font-size:14px;}
+.img-drop:hover, .img-drop.over{border-color:var(--accent, var(--blue)); background:rgba(0,0,204,.03);}
+.img-drop small{display:block; margin-top:6px; font-size:11.5px; color:#B9B3A7;}
+.img-change{position:absolute; left:10px; top:10px; z-index:4;}
+.img-url{font-family:'Courier New',monospace; font-size:11.5px; color:var(--ink-soft); margin-top:8px; display:flex; gap:8px; align-items:center;}
+.img-url input{font-family:inherit; font-size:11.5px; flex:1; border:1px solid var(--line); padding:4px 6px; background:#fdfdfb;}
+
+/* agregar bloque */
+.add-bar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:18px 0 40px; border-top:1px dashed var(--line); margin-top:16px; font-family:'Courier New',monospace; font-size:12px; color:var(--ink-soft);}
+.add-bar button{background:#fff; border:1px solid var(--line); padding:7px 12px; font-family:inherit; font-size:12px; cursor:pointer; color:var(--ink);}
+.add-bar button:hover{border-color:var(--accent, var(--blue)); color:var(--accent, var(--blue));}

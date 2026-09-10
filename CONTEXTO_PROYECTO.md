@@ -324,6 +324,22 @@ entre turnos. Estado al cierre de esa ronda:
   Los archivos reemplazados o de bloques borrados NO se eliminan del disco
   (decisión: simple y sin riesgo de borrar algo referenciado; si algún día
   molesta, se agrega una limpieza de huérfanos).
+- **Editor visual** (tercera parte de la ronda). Pedro probó el editor de
+  formularios y pidió que "la plantilla en la que cargo los datos se parezca
+  al diseño del post, igual que el HTML pero vacío". `admin_edit.html` se
+  reescribió entero: renderiza el post con el mismo `style.css`; cada texto
+  es un `<input>`/`<textarea>` con clase `.ed` que hereda la tipografía del
+  elemento donde está (h1, h2, `.tag`, `.sub`, `.chart-source`...); los
+  bloques se agregan, mueven y borran en el lugar; los gráficos se
+  redibujan en vivo con `static/charts.js` (compartido con `post.html`);
+  las imágenes se suben por AJAX (`POST /admin/upload`, responde JSON) y
+  todo el post se guarda con un solo `POST /admin/posts/<id>/save` en JSON
+  que reemplaza los bloques completos, en orden. Desaparecieron las rutas
+  por bloque (add/update/delete/move) y el mecanismo de prefijos
+  `strip_prefix` de la sección 7: ya no hay formularios que puedan pisarse.
+  El campo `accent` del post existía pero no se usaba en el render; ahora
+  pinta el borde del hero, el eyebrow y los numerales (variable CSS
+  `--accent` en `.page`), en el post, en la portada y en el editor.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

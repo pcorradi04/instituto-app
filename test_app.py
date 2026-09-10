@@ -1,7 +1,8 @@
 """
 Test automático de la plataforma — recorre el flujo completo del panel
-(login, crear post, los cinco tipos de bloque, editar, reordenar, publicar,
-buscar, borrar) sobre una base de datos TEMPORAL. No toca instance/instituto.db.
+(login, crear post, guardar desde el editor visual con los cinco tipos de
+bloque, reordenar, subir imágenes, publicar, buscar, borrar) sobre una base
+de datos TEMPORAL. No toca instance/instituto.db.
 
 Correr después de cualquier cambio en app.py o en los templates:
 
@@ -50,6 +51,15 @@ def db_row(sql, *params):
     return db.execute(sql, params).fetchone()
 
 
+def save(payload, client=None):
+    return (client or c).post(f"/admin/posts/{pid}/save", data=json.dumps(payload),
+                              content_type="application/json")
+
+
+def blocks():
+    return appmod.get_post_blocks(db, pid)
+
+
 # --- login y seguridad básica --------------------------------------------
 r = c.get("/")
 ok(r.status_code == 200 and "Todavía no hay posts" in text(r), "portada vacía")
@@ -68,7 +78,7 @@ ok(r.headers["Location"].endswith("/admin/"), "next interno respetado")
 ok("SameSite=Lax" in r.headers.get("Set-Cookie", "") and "HttpOnly" in r.headers.get("Set-Cookie", ""),
    "cookie de sesión SameSite=Lax + HttpOnly")
 
-# --- crear y editar post -------------------------------------------------
+# --- crear post y abrir el editor ----------------------------------------
 r = c.post("/admin/posts", data={"title": "Título de prueba: Ñandú & Cía"})
 pid = int(re.search(r"/admin/posts/(\d+)/edit", r.headers["Location"]).group(1))
 db = appmod.sqlite3.connect(os.environ["DB_PATH"])
@@ -78,121 +88,112 @@ ok(slug == "titulo-de-prueba-nandu-cia", "post creado, slug con ñ y tildes: " +
 ok(anon.get("/post/" + slug).status_code == 404, "borrador invisible sin login")
 r = c.get("/post/" + slug)
 ok(r.status_code == 200 and "BORRADOR" in text(r), "borrador visible logueado")
-r = c.post(f"/admin/posts/{pid}", data={"title": "Título editado", "eyebrow": "Prueba", "dek": "Copete", "accent": "navy"},
-           follow_redirects=True)
-ok("Post actualizado" in text(r), "datos generales guardados")
-slug = db_row("SELECT slug FROM posts WHERE id=?", pid)["slug"]
-ok(slug == "titulo-editado", "borrador nunca publicado: la URL sigue al título -> " + slug)
-c.post(f"/admin/posts/{pid}", data={"title": "Título editado", "accent": "fucsia"})
-ok(db_row("SELECT accent FROM posts WHERE id=?", pid)["accent"] == "blue", "acento fuera de paleta -> blue")
-ok(db_row("SELECT slug FROM posts WHERE id=?", pid)["slug"] == "titulo-editado",
-   "mismo título -> slug estable (no se agrega -2 a sí mismo)")
+ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
+ok('id="blocks"' in ehtml and "charts.js" in ehtml and "const INITIAL" in ehtml and "Editando: Título de prueba" in ehtml,
+   "editor visual: página con el post inicial, charts.js y el estado en JSON")
+ok(anon.get(f"/admin/posts/{pid}/edit").status_code == 302, "editor requiere login")
 
+# --- guardar desde el editor: datos generales + los 5 tipos de bloque ----
+BLOCKS = [
+    {"type": "heading", "data": {"tag": "Sección uno", "title": "Primer título"}},
+    {"type": "paragraph", "data": {"text": "Texto con **negrita** y *itálica*.\n\nSegundo párrafo <script>alert(1)</script>"}},
+    {"type": "callout", "data": {"color": "navy", "text": "Destacado"}},
+    {"type": "chart", "data": {"chart_type": "line", "title": "Gráfico", "subtitle": "sub", "source": "Fuente X",
+                               "color": "orange", "series_names": "A, B", "table": "Ene | 1 | 2.5\nFeb | 3 |\nMar | x | 4"}},
+    {"type": "image", "data": {"url": "https://example.com/a.png", "caption": "Epígrafe"}},
+    {"type": "heading", "data": {"tag": "Sección dos", "title": "Segundo título"}},
+]
+GENERAL = {"title": "Título editado", "eyebrow": "Prueba", "dek": "Copete", "accent": "navy"}
+r = save({**GENERAL, "blocks": BLOCKS})
+j = r.get_json() or {}
+ok(r.status_code == 200 and j.get("ok") and j.get("slug") == "titulo-editado" and j.get("post_url") == "/post/titulo-editado",
+   "guardar: responde ok; borrador nunca publicado -> la URL sigue al título")
+slug = j.get("slug", slug)
+ok(tuple(db_row("SELECT title, eyebrow, dek, accent FROM posts WHERE id=?", pid)) == ("Título editado", "Prueba", "Copete", "navy"),
+   "datos generales guardados")
+bl = blocks()
+ok([b["type"] for b in bl] == ["heading", "paragraph", "callout", "chart", "image", "heading"], "6 bloques en orden")
+ok(bl[3]["data"]["labels"] == ["Ene", "Feb", "Mar"] and bl[3]["data"]["series"] == [[1.0, 3.0, None], [2.5, None, 4.0]]
+   and bl[3]["data"]["series_names"] == ["A", "B"],
+   "gráfico parseado desde texto: huecos y no-números -> null, series con nombre")
+r = save({**GENERAL, "accent": "fucsia", "blocks": BLOCKS})
+ok(db_row("SELECT accent, slug FROM posts WHERE id=?", pid)["accent"] == "blue", "acento fuera de paleta -> blue")
+ok(db_row("SELECT slug FROM posts WHERE id=?", pid)["slug"] == "titulo-editado", "mismo título -> slug estable (no se agrega -2 a sí mismo)")
+save({**GENERAL, "blocks": BLOCKS})
 
-# --- bloques -------------------------------------------------------------
-def add(type_, **fields):
-    # Se mandan también campos "ruido" de los otros sub-formularios, como
-    # pasaría si el JS que los deshabilita fallara: el server debe ignorarlos.
-    data = {"type": type_, "heading_title": "RUIDO", "chart_title": "RUIDO", "image_url": "RUIDO",
-            "paragraph_text": "RUIDO", "callout_text": "RUIDO"}
-    data.update(fields)
-    r = c.post(f"/admin/posts/{pid}/blocks", data=data, follow_redirects=True)
-    assert r.status_code == 200
+# --- payloads inválidos --------------------------------------------------
+ok(c.post(f"/admin/posts/{pid}/save", data="esto no es json", content_type="text/plain").status_code == 400, "guardar sin JSON -> 400")
+ok(save({"title": "x", "blocks": "nope"}).status_code == 400, "blocks que no es lista -> 400")
+r = save({"title": "x", "blocks": [{"type": "evil", "data": {}}]})
+ok(r.status_code == 400 and len(blocks()) == 6 and db_row("SELECT title FROM posts WHERE id=?", pid)["title"] == "Título editado",
+   "tipo de bloque inválido -> 400 y no se guarda nada")
+ok(save({"title": "x", "blocks": []}, client=anon).status_code == 302, "guardar sin login -> redirige a login")
+ok(c.post("/admin/posts/9999/save", data="{}", content_type="application/json").status_code == 404, "guardar post inexistente -> 404")
 
-
-add("heading", heading_tag="Sección uno", heading_title="Primer título")
-add("paragraph", paragraph_text="Texto con **negrita** y *itálica*.\n\nSegundo párrafo <script>alert(1)</script>")
-add("callout", callout_color="navy", callout_text="Destacado")
-add("chart", chart_chart_type="line", chart_title="Gráfico", chart_subtitle="sub", chart_source="Fuente X",
-    chart_color="orange", chart_series_names="A, B", chart_table="Ene | 1 | 2.5\nFeb | 3 |\nMar | x | 4")
-add("image", image_url="https://example.com/a.png", image_caption="Epígrafe")
-add("heading", heading_tag="Sección dos", heading_title="Segundo título")
-blocks = appmod.get_post_blocks(db, pid)
-ok([b["type"] for b in blocks] == ["heading", "paragraph", "callout", "chart", "image", "heading"], "6 bloques en orden")
-ok(blocks[0]["data"]["title"] == "Primer título", "prefijo heading_ aislado del ruido de otros sub-formularios")
-ok(blocks[3]["data"]["title"] == "Gráfico" and blocks[3]["data"]["labels"] == ["Ene", "Feb", "Mar"]
-   and blocks[3]["data"]["series"] == [[1.0, 3.0, None], [2.5, None, 4.0]],
-   "gráfico parseado, huecos y no-números -> null: " + json.dumps(blocks[3]["data"]["series"]))
-ok(blocks[4]["data"]["url"] == "https://example.com/a.png", "prefijo image_ aislado")
-r = c.post(f"/admin/posts/{pid}/blocks", data={"type": "evil"}, follow_redirects=True)
-ok("inválido" in text(r), "tipo de bloque inválido rechazado")
-
+# --- render público del post ---------------------------------------------
 html = text(c.get("/post/" + slug))
 ok('<span class="num">I</span>' in html and '<span class="num">II</span>' in html, "numeración romana I, II")
 ok("<b>negrita</b>" in html and "<i>itálica</i>" in html, "negrita/itálica renderizadas")
 ok("<script>alert(1)</script>" not in html and "&lt;script&gt;" in html, "HTML escrito por el usuario queda escapado (XSS)")
-ok('id="chart-' in html and "series_names" in html and '"A"' in html, "definición del gráfico pasada a Chart.js")
+ok('id="chart-' in html and "series_names" in html and '"A"' in html and "charts.js" in html, "definición del gráfico pasada a charts.js")
 ok('class="callout navy"' in html, "callout navy")
+ok('style="--accent:#1F4E5F"' in html, "el color de acento del post llega al CSS (--accent)")
 
-bid = blocks[1]["id"]
-r = c.post(f"/admin/posts/{pid}/blocks/{bid}", data={"text": "Texto nuevo"}, follow_redirects=True)
-ok("Bloque actualizado" in text(r), "bloque editado")
-ok(appmod.get_post_blocks(db, pid)[1]["data"]["text"] == "Texto nuevo", "edición persistida")
-b0 = blocks[0]["id"]
-c.post(f"/admin/posts/{pid}/blocks/{b0}/move/down")
-ok([b["type"] for b in appmod.get_post_blocks(db, pid)][:2] == ["paragraph", "heading"], "mover abajo")
-c.post(f"/admin/posts/{pid}/blocks/{b0}/move/up")
-ok([b["type"] for b in appmod.get_post_blocks(db, pid)][:2] == ["heading", "paragraph"], "mover arriba")
-c.post(f"/admin/posts/{pid}/blocks/{b0}/move/up")
-ok(appmod.get_post_blocks(db, pid)[0]["type"] == "heading", "mover arriba en el tope: sin cambios")
-c.post(f"/admin/posts/{pid}/blocks/{blocks[4]['id']}/delete")
-ok(len(appmod.get_post_blocks(db, pid)) == 5, "bloque borrado")
+# --- el editor devuelve lo guardado en forma editable --------------------
 ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
-ok("Ene | 1 | 2.5\nFeb | 3 | \nMar |  | 4" in ehtml, "tabla del gráfico reconstruida para reeditar (sin .0)")
+ok('"table": "Ene | 1 | 2.5\\nFeb | 3 | \\nMar |  | 4"' in ehtml and '"series_names": "A, B"' in ehtml,
+   "editor: el gráfico vuelve como tabla de texto (sin .0) y series como texto")
+ok('style="--accent:#1F4E5F"' in ehtml, "editor: arranca con el acento del post")
+
+# --- reordenar y borrar bloques = mandar otra lista -----------------------
+rev = list(reversed(BLOCKS))
+save({**GENERAL, "blocks": rev})
+ok([b["type"] for b in blocks()] == [b["type"] for b in rev] and blocks()[0]["data"]["title"] == "Segundo título",
+   "reordenar: el orden guardado es el que manda el editor")
+save({**GENERAL, "blocks": BLOCKS[:-1]})
+ok(len(blocks()) == 5, "borrar un bloque: guardar sin él lo elimina")
+save({**GENERAL, "blocks": BLOCKS})
 
 # --- imágenes subidas ----------------------------------------------------
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
-JPG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
-n_before = len(appmod.get_post_blocks(db, pid))
-r = c.post(f"/admin/posts/{pid}/blocks",
-           data={"type": "image", "image_caption": "Foto", "image_url": "",
-                 "image_file": (io.BytesIO(PNG), "Foto de Prueba.PNG")},
-           content_type="multipart/form-data", follow_redirects=True)
-img_block = appmod.get_post_blocks(db, pid)[-1]
-img_url = img_block["data"]["url"]
-ok(img_block["type"] == "image" and img_url.startswith("/uploads/") and img_url.endswith("-foto_de_prueba.png"),
-   "imagen subida -> bloque con URL local: " + img_url)
+r = c.post("/admin/upload", data={"file": (io.BytesIO(PNG), "Foto de Prueba.PNG")}, content_type="multipart/form-data")
+img_url = (r.get_json() or {}).get("url", "")
+ok(r.status_code == 200 and img_url.startswith("/uploads/") and img_url.endswith("-foto_de_prueba.png"),
+   "subir imagen -> URL local: " + img_url)
 r = anon.get(img_url)
 ok(r.status_code == 200 and r.mimetype == "image/png" and r.data == PNG, "la imagen subida se sirve públicamente como image/png")
 ok(os.path.isfile(os.path.join(appmod.UPLOAD_DIR, os.path.basename(img_url))), "archivo guardado en UPLOAD_DIR (al lado de la base)")
-r = c.post(f"/admin/posts/{pid}/blocks",
-           data={"type": "image", "image_file": (io.BytesIO(b"MZ esto no es una imagen"), "virus.png")},
-           content_type="multipart/form-data", follow_redirects=True)
-ok("no parece una imagen" in text(r) and len(appmod.get_post_blocks(db, pid)) == n_before + 1,
+r = c.post("/admin/upload", data={"file": (io.BytesIO(b"MZ esto no es una imagen"), "virus.png")}, content_type="multipart/form-data")
+ok(r.status_code == 400 and "no parece una imagen" in (r.get_json() or {}).get("error", ""),
    "archivo que no es imagen: rechazado aunque se llame .png")
-r = c.post(f"/admin/posts/{pid}/blocks", data={"type": "image", "image_url": "", "image_caption": "sin nada"}, follow_redirects=True)
-ok("subí un archivo o pegá una URL" in text(r) and len(appmod.get_post_blocks(db, pid)) == n_before + 1,
-   "imagen sin archivo ni URL: rechazada")
-r = c.post(f"/admin/posts/{pid}/blocks/{img_block['id']}",
-           data={"caption": "Foto nueva", "url": img_url, "file": (io.BytesIO(JPG), "otra.jpeg")},
-           content_type="multipart/form-data", follow_redirects=True)
-b_new = appmod.get_post_blocks(db, pid)[-1]
-ok(b_new["data"]["url"].endswith("-otra.jpg") and b_new["data"]["caption"] == "Foto nueva",
-   "editar bloque con archivo nuevo reemplaza la URL (extensión según contenido real)")
+r = c.post("/admin/upload", data={}, content_type="multipart/form-data")
+ok(r.status_code == 400 and "ningún archivo" in (r.get_json() or {}).get("error", ""), "subir sin archivo -> error claro")
 big = b"\x89PNG\r\n\x1a\n" + b"\x00" * (11 * 1024 * 1024)
-r = c.post(f"/admin/posts/{pid}/blocks",
-           data={"type": "image", "image_file": (io.BytesIO(big), "grande.png")},
-           content_type="multipart/form-data", follow_redirects=True)
-ok("demasiado grande" in text(r) and len(appmod.get_post_blocks(db, pid)) == n_before + 1,
-   "imagen de 11 MB: rechazada con mensaje claro")
+r = c.post("/admin/upload", data={"file": (io.BytesIO(big), "grande.png")}, content_type="multipart/form-data")
+ok(r.status_code == 413 and "demasiado grande" in (r.get_json() or {}).get("error", ""), "imagen de 11 MB: 413 con mensaje en JSON")
+ok(anon.post("/admin/upload", data={"file": (io.BytesIO(PNG), "x.png")}, content_type="multipart/form-data").status_code == 302,
+   "subir sin login -> redirige a login")
 ok(anon.get("/uploads/../app.py").status_code == 404, "no se puede salir de la carpeta de uploads")
-ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
-ok('name="image_file"' in ehtml and 'name="file"' in ehtml and ehtml.count('enctype="multipart/form-data"') >= 2
-   and f'<img src="{b_new["data"]["url"]}"' in ehtml, "editor: campos de subida, formularios multipart y vista previa de la imagen")
+save({**GENERAL, "blocks": BLOCKS + [{"type": "image", "data": {"url": img_url, "caption": "Foto"}}]})
+html = text(c.get("/post/" + slug))
+ok(f'<img src="{img_url}"' in html, "la imagen subida aparece en el post")
 
-# --- publicar, buscar, borrar --------------------------------------------
-r = c.post(f"/admin/posts/{pid}/publish", follow_redirects=True)
-ok("Post publicado" in text(r), "publicado")
+# --- publicar, buscar, despublicar ---------------------------------------
+r = c.post(f"/admin/posts/{pid}/publish", data={"next": f"/admin/posts/{pid}/edit"})
+ok(r.status_code == 302 and r.headers["Location"].endswith(f"/admin/posts/{pid}/edit"), "publicar desde el editor vuelve al editor")
 r = anon.get("/post/" + slug)
 ok(r.status_code == 200 and "BORRADOR" not in text(r), "visible públicamente")
-c.post(f"/admin/posts/{pid}", data={"title": "Título cambiado después de publicar", "accent": "navy"})
-ok(db_row("SELECT slug FROM posts WHERE id=?", pid)["slug"] == "titulo-editado",
-   "ya publicado: el slug se congela aunque cambie el título")
+save({**GENERAL, "title": "Título cambiado después de publicar", "blocks": BLOCKS})
+ok(db_row("SELECT slug FROM posts WHERE id=?", pid)["slug"] == "titulo-editado", "ya publicado: el slug se congela aunque cambie el título")
 ok("Título cambiado" in text(anon.get("/?q=cambiado")), "búsqueda por título")
 ok("No encontramos" in text(anon.get("/?q=zzzz")), "búsqueda sin resultados")
-c.post(f"/admin/posts/{pid}/publish")
+ok('style="--accent:#1F4E5F"' in text(anon.get("/")), "la portada pinta cada post con su acento")
+r = c.post(f"/admin/posts/{pid}/publish", data={"next": "https://evil.com"})
+ok(r.headers["Location"].endswith("/admin/"), "despublicar con next externo -> dashboard")
 p2 = db_row("SELECT status, published_at FROM posts WHERE id=?", pid)
 ok(p2["status"] == "draft" and p2["published_at"], "despublicado conserva la fecha original")
+
+# --- slug duplicado, borrar, 404s, logout --------------------------------
 r = c.post("/admin/posts", data={"title": "Título editado"})
 pid2 = int(re.search(r"/(\d+)/edit", r.headers["Location"]).group(1))
 ok(db_row("SELECT slug FROM posts WHERE id=?", pid2)["slug"] == "titulo-editado-2", "slug duplicado -> sufijo -2")

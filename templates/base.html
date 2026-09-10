@@ -8,7 +8,7 @@
 {% block extra_head %}{% endblock %}
 </head>
 <body>
-<div class="page">
+<div class="page"{% if accent_hex %} style="--accent:{{ accent_hex }}"{% endif %}>
 
 <div class="brand-bar">
   <div class="blogtag">Blog del <b><a href="{{ url_for('index') }}">Instituto de Energía</a></b></div>

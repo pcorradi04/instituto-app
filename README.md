@@ -56,28 +56,41 @@ python test_app.py
 ## 2. Cómo se usa el panel
 
 1. Entrás a `/admin/login` con la clave.
-2. "Nuevo post": le ponés un título y ya te lleva al editor.
-3. En **Datos generales** cargás etiqueta, copete y elegís el color de acento
-   (la paleta es fija a propósito, para que todos los posts se vean parte de
-   la misma publicación).
-4. En **Contenido del post** vas agregando bloques, de a uno, con el
-   selector de abajo de todo:
+2. "Nuevo post": le ponés un título y se abre el editor.
+3. El editor **es el post**: ves la misma página que van a ver los lectores,
+   con el mismo diseño, pero vacía. Hacés click en cualquier texto
+   (etiqueta, título, copete) y escribís ahí mismo.
+4. Con los botones de abajo de todo ("+ Agregar") sumás bloques, que
+   aparecen en el lugar exacto donde van a quedar:
    - **Título de sección**: se numera solo con números romanos (I, II, III...).
-   - **Párrafo**: texto plano, admite `**negrita**` y `*itálica*`.
-   - **Callout**: un destacado de color (naranja / navy / granate).
-   - **Gráfico**: elegís tipo (barras comparativas, línea, áreas apiladas),
-     ponés los nombres de las series, y cargás los datos como texto simple:
+   - **Párrafo**: texto corrido. Línea en blanco = párrafo nuevo. Seleccioná
+     texto y tocá **B** o **I** (aparecen al pasar el mouse) para negrita o
+     itálica: mientras editás se ve como `**así**`, en el post se ve en
+     negrita.
+   - **Destacado**: un recuadro de color (naranja / navy / granate) para un
+     dato clave o una advertencia.
+   - **Gráfico**: elegís tipo y color, ponés los nombres de las series y
+     cargás los datos como texto simple, una fila por línea:
      ```
      Mayo 2026 | 959.1 | 1172
      Junio 2026 | 401.3 | 918
      ```
-     (Etiqueta, después cada valor separado por `|`.)
-   - **Imagen**: subís un archivo desde tu computadora (PNG, JPG, GIF o
-     WebP, hasta 10 MB) o pegás la URL de una imagen que ya está en
-     internet, más un epígrafe. Las subidas quedan en `instance/uploads/`.
-5. Los bloques ya cargados se pueden reordenar (↑ ↓), editar o borrar.
-6. Cuando está listo, tocás **"Publicar este post"** arriba — antes de eso
-   queda como borrador (solo lo ves vos, logueado).
+     (Etiqueta, después cada valor separado por `|`.) El gráfico se dibuja
+     arriba mientras escribís.
+   - **Imagen**: hacés click en el recuadro y elegís un archivo (PNG, JPG,
+     GIF o WebP, hasta 10 MB), o lo arrastrás, o pegás una URL; más un
+     epígrafe. Las subidas quedan en `instance/uploads/`.
+5. Al pasar el mouse por un bloque aparecen sus controles: subir, bajar,
+   borrar, y el color si corresponde.
+6. Arriba a la derecha elegís el **color de acento** del post (pinta el
+   borde del encabezado, la etiqueta y los numerales de sección). La paleta
+   es fija a propósito, para que todos los posts se vean parte de la misma
+   publicación.
+7. **Guardar** (o Ctrl+S) guarda todo de una vez. Si cerrás la pestaña con
+   cambios sin guardar, el navegador te avisa.
+8. **Publicar** guarda y hace público el post. Antes de eso es un borrador
+   que solo ves vos, logueado ("Ver post ↗" te lo muestra tal cual va a
+   quedar).
 
 ## 3. Estructura del proyecto
 
@@ -95,7 +108,8 @@ instituto-app/
 │   └── uploads/         → las imágenes subidas desde el panel
 ├── static/
 │   ├── style.css        → el sistema de diseño del sitio público (el que ya conocés)
-│   ├── admin.css         → estilos del panel (funcional, mismo lenguaje visual)
+│   ├── admin.css         → estilos del panel y del editor visual
+│   ├── charts.js         → dibuja los gráficos (lo usan el post y el editor, para que se vean igual)
 │   └── img/              → logos, ya como archivos normales (no base64)
 └── templates/
     ├── base.html         → header + footer compartidos
