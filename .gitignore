@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+venv/
+.venv/
+.env
+# La base de datos es contenido real, no código: no va al repo.
+instance/

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ post['title'] }} — Instituto de Energía{% endblock %}
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div class="eyebrow">{{ post['eyebrow'] or 'Instituto de Energía' }}</div>
+  <h1>{{ post['title'] }}</h1>
+  {% if post['dek'] %}<p class="lede">{{ post['dek'] }}</p>{% endif %}
+  {% if post['status'] == 'draft' %}<p class="lede" style="color:#A63D2F; font-weight:bold;">[BORRADOR — no visible públicamente]</p>{% endif %}
+</div>
+
+<main>
+<section style="border-bottom:none;">
+
+  {% for b in blocks %}
+    {% if b.type == 'heading' %}
+      <div class="section-marker"><span class="num">{{ b.roman }}</span><span class="tag">{{ b.data.tag }}</span></div>
+      <h2>{{ b.data.title }}</h2>
+
+    {% elif b.type == 'paragraph' %}
+      <div class="block-p">{{ b.html | safe }}</div>
+
+    {% elif b.type == 'callout' %}
+      <div class="callout {{ 'navy' if b.data.color=='navy' else ('maroon' if b.data.color in ['maroon','rust'] else '') }}">{{ b.html | safe }}</div>
+
+    {% elif b.type == 'image' %}
+      <div class="chart-card">
+        <img src="{{ b.data.url }}" alt="{{ b.data.caption }}" style="width:100%; height:auto; display:block;">
+        {% if b.data.caption %}<div class="chart-source">{{ b.data.caption }}</div>{% endif %}
+      </div>
+
+    {% elif b.type == 'chart' %}
+      <div class="chart-card">
+        {% if b.data.title %}<h3>{{ b.data.title }}</h3>{% endif %}
+        {% if b.data.subtitle %}<div class="sub">{{ b.data.subtitle }}</div>{% endif %}
+        <div class="chart-wrap"><canvas id="chart-{{ b.id }}"></canvas></div>
+        {% if b.data.source %}<div class="chart-source">Fuente: {{ b.data.source }}</div>{% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+
+</section>
+</main>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CHART_DEFS = {{ chart_defs | tojson }};
+const ACCENT_HEX = {{ accents_hex | tojson }};
+
+Chart.defaults.font.family = "Georgia, 'Times New Roman', serif";
+Chart.defaults.color = '#5B564C';
+Chart.defaults.font.size = 11.5;
+const GRIDCLR = '#EAE5D8';
+
+CHART_DEFS.forEach(def => {
+  const el = document.getElementById(def.id);
+  if(!el) return;
+  const mainColor = ACCENT_HEX[def.color] || '#C1622E';
+  const otherColor = '#3B0A0A';
+  const seriesColors = [mainColor, otherColor, '#1F4E5F'];
+
+  if(def.chart_type === 'bar_comparison'){
+    new Chart(el, {
+      type:'bar',
+      data:{ labels:def.labels, datasets:(def.series||[]).map((s,i)=>({
+        label: (def.series_names && def.series_names[i]) || ('Serie ' + (i+1)),
+        data: s, backgroundColor: seriesColors[i % seriesColors.length]
+      })) },
+      options:{responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top', labels:{boxWidth:10}}},
+        scales:{y:{grid:{color:GRIDCLR}}, x:{grid:{display:false}}}}
+    });
+  } else if(def.chart_type === 'line'){
+    new Chart(el, {
+      type:'line',
+      data:{ labels:def.labels, datasets:(def.series||[]).map((s,i)=>({
+        label:(def.series_names && def.series_names[i]) || ('Serie ' + (i+1)),
+        data:s, borderColor:seriesColors[i % seriesColors.length], backgroundColor:'transparent',
+        borderWidth:2.2, pointRadius:2, tension:0.2
+      })) },
+      options:{responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top', labels:{boxWidth:10}}},
+        scales:{y:{grid:{color:GRIDCLR}}, x:{grid:{display:false}}}}
+    });
+  } else if(def.chart_type === 'stacked_area'){
+    new Chart(el, {
+      type:'line',
+      data:{ labels:def.labels, datasets:(def.series||[]).map((s,i)=>({
+        label:(def.series_names && def.series_names[i]) || ('Serie ' + (i+1)),
+        data:s, borderColor:seriesColors[i % seriesColors.length],
+        backgroundColor:seriesColors[i % seriesColors.length] + '88',
+        fill:true, borderWidth:1, pointRadius:0
+      })) },
+      options:{responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top', labels:{boxWidth:10}}},
+        scales:{y:{stacked:true, grid:{color:GRIDCLR}}, x:{grid:{display:false}}}}
+    });
+  }
+});
+</script>
+{% endblock %}

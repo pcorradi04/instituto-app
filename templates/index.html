@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Instituto de Energía — Perspectivas sobre Energía y Minería{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div class="eyebrow">Instituto de Energía - Perspectivas sobre Energía y Minería</div>
+  <h1>Análisis, datos y debate para comprender mejor ambos sectores.</h1>
+  <p class="lede">Desde el Instituto de Energía de la Universidad Austral proponemos un seguimiento cercano y permanente de las transformaciones que atraviesan al sector energético. Este espacio reúne miradas, lecturas, análisis y debate, apoyados en datos y en una observación sistemática de una realidad particularmente dinámica. El propósito es interpretar los cambios mientras ocurren, identificar tendencias, contrastar perspectivas y explorar sus posibles implicancias. Los datos constituyen el punto de partida; el análisis y la discusión permiten dotarlos de contexto y sentido. A partir de allí, las proyecciones buscan ampliar la mirada hacia los escenarios que comienzan a configurarse. Un espacio abierto para pensar la energía desde distintas perspectivas, combinando evidencia, reflexión académica y diálogo con los protagonistas del sector.</p>
+</div>
+
+<main>
+<section style="border-bottom:none;">
+  {% if q %}
+    <p class="section-intro">Resultados para “{{ q }}” ({{ posts|length }})</p>
+  {% endif %}
+
+  {% if posts %}
+  <div class="post-list">
+    {% for post in posts %}
+    <a class="post-card" href="{{ url_for('show_post', slug=post['slug']) }}">
+      <div class="eyebrow">{{ post['eyebrow'] or 'Instituto de Energía' }}</div>
+      <h2>{{ post['title'] }}</h2>
+      {% if post['dek'] %}<p class="dek">{{ post['dek'] }}</p>{% endif %}
+      <div class="meta">{{ post['published_at'][:10] if post['published_at'] else '' }}</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+    <p class="section-intro">{% if q %}No encontramos posts que coincidan.{% else %}Todavía no hay posts publicados.{% endif %}</p>
+  {% endif %}
+</section>
+</main>
+
+{% endblock %}

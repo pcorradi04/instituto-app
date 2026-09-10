@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Editando: {{ post['title'] }} — Panel admin</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+<body class="admin">
+<div class="admin-bar">
+  <div><b>Instituto de Energía</b> — Editando post</div>
+  <div>
+    <a href="{{ url_for('show_post', slug=post['slug']) }}" target="_blank">Vista previa ↗</a>
+    <a href="{{ url_for('admin_dashboard') }}">← Todos los posts</a>
+  </div>
+</div>
+<div class="admin-wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, msg in messages %}
+        <div class="flash {{ 'error' if category=='error' else 'ok' }}">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <h1>{{ post['title'] }}
+    <span class="status-pill {{ post['status'] }}">{{ 'Publicado' if post['status']=='published' else 'Borrador' }}</span>
+  </h1>
+
+  <form method="post" action="{{ url_for('admin_toggle_publish', post_id=post['id']) }}" style="margin-bottom:20px;">
+    <button class="btn" type="submit">{{ 'Despublicar' if post['status']=='published' else '✓ Publicar este post' }}</button>
+  </form>
+
+  <div class="admin-card">
+    <h3 style="margin-top:0; font-family:Georgia,serif;">Datos generales</h3>
+    <form method="post" action="{{ url_for('admin_update_post', post_id=post['id']) }}">
+      <div class="field">
+        <label>Título</label>
+        <input type="text" name="title" value="{{ post['title'] }}">
+      </div>
+      <div class="field">
+        <label>Etiqueta / categoría (arriba del título)</label>
+        <input type="text" name="eyebrow" value="{{ post['eyebrow'] }}" placeholder="Ej: Comercio Exterior">
+      </div>
+      <div class="field">
+        <label>Copete / resumen (debajo del título)</label>
+        <textarea name="dek">{{ post['dek'] }}</textarea>
+      </div>
+      <div class="field">
+        <label>Color de acento</label>
+        <select name="accent">
+          {% for key, a in accents.items() %}
+          <option value="{{ key }}" {{ 'selected' if post['accent']==key else '' }}>{{ a.label }}</option>
+          {% endfor %}
+        </select>
+        <div class="hint">Paleta fija del Instituto — no se puede elegir un color libre, a propósito.</div>
+      </div>
+      <button class="btn" type="submit">Guardar datos generales</button>
+    </form>
+  </div>
+
+  <h2 id="blocks" style="font-family:Georgia,serif; margin-top:36px;">Contenido del post</h2>
+  <p class="hint" style="margin-bottom:16px;">El orden de estos bloques es el orden en que aparecen en el post. Los bloques "Título de sección" se numeran solos (I, II, III...).</p>
+
+  {% for b in blocks %}
+  <div class="block">
+    <div class="block-head">
+      <span class="type-badge">{{ b.type }}</span>
+      <div class="block-actions">
+        <form method="post" action="{{ url_for('admin_move_block', post_id=post['id'], block_id=b['id'], direction='up') }}" style="display:inline;">
+          <button class="btn small secondary" type="submit">↑</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_move_block', post_id=post['id'], block_id=b['id'], direction='down') }}" style="display:inline;">
+          <button class="btn small secondary" type="submit">↓</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_delete_block', post_id=post['id'], block_id=b['id']) }}" style="display:inline;" onsubmit="return confirm('¿Borrar este bloque?');">
+          <button class="btn small danger" type="submit">Borrar</button>
+        </form>
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('admin_update_block', post_id=post['id'], block_id=b['id']) }}">
+      {% if b.type == 'heading' %}
+        <div class="field"><label>Etiqueta (small caps, al lado del numeral)</label><input type="text" name="tag" value="{{ b.data.tag }}"></div>
+        <div class="field"><label>Título de la sección</label><input type="text" name="title" value="{{ b.data.title }}"></div>
+
+      {% elif b.type == 'paragraph' %}
+        <div class="field">
+          <label>Texto</label>
+          <textarea name="text" style="min-height:120px;">{{ b.data.text }}</textarea>
+          <div class="hint">Podés usar **negrita** y *itálica*. Línea en blanco = párrafo nuevo.</div>
+        </div>
+
+      {% elif b.type == 'callout' %}
+        <div class="field">
+          <label>Color</label>
+          <select name="color">
+            <option value="orange" {{ 'selected' if b.data.color=='orange' else '' }}>Naranja</option>
+            <option value="navy" {{ 'selected' if b.data.color=='navy' else '' }}>Navy</option>
+            <option value="maroon" {{ 'selected' if b.data.color=='maroon' else '' }}>Granate</option>
+          </select>
+        </div>
+        <div class="field"><label>Texto</label><textarea name="text">{{ b.data.text }}</textarea></div>
+
+      {% elif b.type == 'image' %}
+        <div class="field"><label>URL de la imagen</label><input type="text" name="url" value="{{ b.data.url }}"></div>
+        <div class="field"><label>Epígrafe / fuente</label><input type="text" name="caption" value="{{ b.data.caption }}"></div>
+
+      {% elif b.type == 'chart' %}
+        <div class="field">
+          <label>Tipo de gráfico</label>
+          <select name="chart_type">
+            {% for key, label in chart_types.items() %}
+            <option value="{{ key }}" {{ 'selected' if b.data.chart_type==key else '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Título del gráfico</label><input type="text" name="title" value="{{ b.data.title }}"></div>
+        <div class="field"><label>Subtítulo</label><input type="text" name="subtitle" value="{{ b.data.subtitle }}"></div>
+        <div class="field"><label>Fuente</label><input type="text" name="source" value="{{ b.data.source }}"></div>
+        <div class="field">
+          <label>Color principal</label>
+          <select name="color">
+            {% for key, a in accents.items() %}
+            <option value="{{ key }}" {{ 'selected' if b.data.color==key else '' }}>{{ a.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Nombres de las series (separados por coma)</label>
+          <input type="text" name="series_names" value="{{ b.data.series_names|join(', ') }}" placeholder="Energía, INDEC">
+        </div>
+        <div class="field">
+          <label>Datos — una fila por línea: Etiqueta | valor1 | valor2</label>
+          <textarea name="table" style="min-height:120px;">{{ b.table_text }}</textarea>
+          <div class="hint">Ejemplo: <span class="mono">Mayo 2026 | 959.1 | 1172</span></div>
+        </div>
+      {% endif %}
+      <button class="btn small" type="submit">Guardar bloque</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="hint">Todavía no hay bloques. Agregá el primero abajo.</p>
+  {% endfor %}
+
+  <div class="admin-card">
+    <h3 style="margin-top:0; font-family:Georgia,serif;">+ Agregar bloque</h3>
+    <div class="field">
+      <label>Tipo de bloque</label>
+      <select id="newBlockType" onchange="showBlockForm(this.value)">
+        <option value="heading">Título de sección</option>
+        <option value="paragraph">Párrafo</option>
+        <option value="callout">Callout / destacado</option>
+        <option value="chart">Gráfico</option>
+        <option value="image">Imagen</option>
+      </select>
+    </div>
+
+    <form method="post" action="{{ url_for('admin_add_block', post_id=post['id']) }}">
+      <input type="hidden" name="type" id="typeField" value="heading">
+
+      <div id="form-heading" class="block-form">
+        <div class="field"><label>Etiqueta</label><input type="text" name="heading_tag" placeholder="Ej: FUENTE ÚNICA"></div>
+        <div class="field"><label>Título de la sección</label><input type="text" name="heading_title"></div>
+      </div>
+
+      <div id="form-paragraph" class="block-form" style="display:none;">
+        <div class="field"><label>Texto</label><textarea name="paragraph_text" style="min-height:120px;"></textarea></div>
+      </div>
+
+      <div id="form-callout" class="block-form" style="display:none;">
+        <div class="field"><label>Color</label>
+          <select name="callout_color"><option value="orange">Naranja</option><option value="navy">Navy</option><option value="maroon">Granate</option></select>
+        </div>
+        <div class="field"><label>Texto</label><textarea name="callout_text"></textarea></div>
+      </div>
+
+      <div id="form-chart" class="block-form" style="display:none;">
+        <div class="field"><label>Tipo de gráfico</label>
+          <select name="chart_chart_type">
+            {% for key, label in chart_types.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Título</label><input type="text" name="chart_title"></div>
+        <div class="field"><label>Subtítulo</label><input type="text" name="chart_subtitle"></div>
+        <div class="field"><label>Fuente</label><input type="text" name="chart_source"></div>
+        <div class="field"><label>Color principal</label>
+          <select name="chart_color">{% for key, a in accents.items() %}<option value="{{ key }}">{{ a.label }}</option>{% endfor %}</select>
+        </div>
+        <div class="field"><label>Nombres de series (coma)</label><input type="text" name="chart_series_names" placeholder="Energía, INDEC"></div>
+        <div class="field"><label>Datos — Etiqueta | valor1 | valor2 (una fila por línea)</label>
+          <textarea name="chart_table" style="min-height:120px;" placeholder="Mayo 2026 | 959.1 | 1172&#10;Junio 2026 | 401.3 | 918"></textarea>
+        </div>
+      </div>
+
+      <div id="form-image" class="block-form" style="display:none;">
+        <div class="field"><label>URL de la imagen</label><input type="text" name="image_url"></div>
+        <div class="field"><label>Epígrafe / fuente</label><input type="text" name="image_caption"></div>
+      </div>
+
+      <button class="btn" type="submit">+ Agregar este bloque</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function showBlockForm(type){
+  document.querySelectorAll('.block-form').forEach(el => {
+    el.style.display = 'none';
+    el.querySelectorAll('input, select, textarea').forEach(f => f.disabled = true);
+  });
+  const active = document.getElementById('form-' + type);
+  active.style.display = 'block';
+  active.querySelectorAll('input, select, textarea').forEach(f => f.disabled = false);
+  document.getElementById('typeField').value = type;
+}
+showBlockForm(document.getElementById('newBlockType').value);
+</script>
+</body>
+</html>
