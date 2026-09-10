@@ -340,6 +340,27 @@ entre turnos. Estado al cierre de esa ronda:
   El campo `accent` del post existía pero no se usaba en el render; ahora
   pinta el borde del hero, el eyebrow y los numerales (variable CSS
   `--accent` en `.page`), en el post, en la portada y en el editor.
+- **20 tipos de gráfico** (cuarta parte de la ronda). Pedro pidió poder usar
+  los 15 de `galeria_graficos.html` (sección 6). Están todos en
+  `static/charts.js`, más los 2 que ya había y 3 nuevos (barras apiladas
+  absolutas, barras horizontales para ranking, barras + línea con eje
+  derecho). Diseño: la carga sigue siendo la tabla de texto
+  `col1 | col2 | ...`, pero cada tipo define qué significa cada columna
+  (`CHART_SPECS[tipo].columns`), qué son los "nombres de series" (leyenda,
+  títulos de ejes, etiquetas de columnas, o nada) y qué opciones tiene
+  (`options`: título de eje, unidad, ordenar, diagonal y = x, etiquetas del
+  velocímetro...). El editor arma el panel de carga desde esa spec. Para
+  los tipos con texto en más de una columna (Sankey: origen | destino |
+  valor) el server guarda además `rows` (las filas crudas); los gráficos
+  viejos sin `rows` se reconstruyen desde labels + series. `app.py` solo
+  valida que el tipo esté en la lista `CHART_TYPES`: **un tipo nuevo se
+  agrega en los dos lados**. Los de Chart.js reciben un `<canvas>` que
+  crea el propio renderer; los hechos a mano (SVG/HTML: mancuernas, mapa
+  de calor, treemap, Sankey, lista sombreada, box plot, bullet,
+  velocímetro) escriben innerHTML y el contenedor pasa a altura automática
+  (`.chart-wrap.auto`); se redibujan al cambiar el ancho de la ventana.
+  El Sankey se generalizó a varios orígenes y varios destinos (la galería
+  tenía uno solo).
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

@@ -85,6 +85,8 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .chart-data input[type=text]{flex:1; min-width:200px;}
 .chart-data textarea{width:100%; min-height:96px; font-family:inherit; font-size:12.5px; padding:8px; border:1px solid var(--line); background:#fdfdfb; resize:vertical; line-height:1.5;}
 .chart-data .hint{font-size:11px; font-style:italic; font-family:Georgia,serif; margin-top:4px;}
+.chart-data .copts input[type=text]{flex:0 1 220px; min-width:120px;}
+.chart-data .ccols{font-size:11px; color:var(--ink); margin:2px 0 6px; padding:5px 8px; background:var(--paper-2); border-left:3px solid var(--accent, var(--blue));}
 .chart-empty{height:200px; display:flex; align-items:center; justify-content:center; text-align:center; padding:0 20px; color:#B9B3A7; font-style:italic; border:1px dashed var(--line);}
 
 /* imagen */

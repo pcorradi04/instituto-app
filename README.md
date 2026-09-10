@@ -69,14 +69,21 @@ python test_app.py
      negrita.
    - **Destacado**: un recuadro de color (naranja / navy / granate) para un
      dato clave o una advertencia.
-   - **Gráfico**: elegís tipo y color, ponés los nombres de las series y
+   - **Gráfico**: elegís el tipo (hay 20, agrupados: comparación, evolución
+     en el tiempo, composición, distribución e indicadores), el color, y
      cargás los datos como texto simple, una fila por línea:
      ```
      Mayo 2026 | 959.1 | 1172
      Junio 2026 | 401.3 | 918
      ```
-     (Etiqueta, después cada valor separado por `|`.) El gráfico se dibuja
-     arriba mientras escribís.
+     Cada tipo dice qué va en cada columna: el editor lo muestra en una
+     línea "Columnas: ..." arriba de la tabla, con un ejemplo gris adentro.
+     Los tipos son: barras agrupadas, barras horizontales, barras
+     divergentes, mancuernas, dispersión, líneas, barras + línea (eje
+     derecho), áreas apiladas, ranking en el tiempo (bump), mapa de calor,
+     cascada, pronóstico con bandas (fan), barras apiladas, barras 100 %,
+     treemap, Sankey, mapa esquemático por zona, caja y bigotes, bullet y
+     velocímetro. El gráfico se dibuja arriba mientras escribís.
    - **Imagen**: hacés click en el recuadro y elegís un archivo (PNG, JPG,
      GIF o WebP, hasta 10 MB), o lo arrastrás, o pegás una URL; más un
      epígrafe. Las subidas quedan en `instance/uploads/`.

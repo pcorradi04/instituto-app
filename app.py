@@ -75,11 +75,16 @@ ACCENTS = {
     "navy":   {"label": "Navy (gas)",            "hex": "#1F4E5F"},
     "maroon": {"label": "Granate (alerta)",      "hex": "#A63D2F"},
 }
-CHART_TYPES = {
-    "bar_comparison": "Barras comparativas (hasta 2 series)",
-    "line":           "Línea temporal (hasta 3 series)",
-    "stacked_area":   "Áreas apiladas",
-}
+# Tipos de gráfico disponibles. La definición de cada uno (qué columnas lleva
+# la tabla, qué opciones tiene, cómo se dibuja) vive en static/charts.js, que
+# comparten el post y el editor. Acá solo se valida que el tipo exista: para
+# agregar un tipo nuevo hay que sumarlo en los dos lados.
+CHART_TYPES = [
+    "bar_comparison", "bar_horizontal", "diverging_bar", "dumbbell", "scatter",
+    "line", "bar_line", "stacked_area", "bump", "heatmap", "waterfall", "fan_chart",
+    "stacked_bar", "stacked_bar_100", "treemap", "sankey", "shaded_list",
+    "boxplot", "bullet", "gauge",
+]
 BLOCK_TYPES = ["heading", "paragraph", "callout", "chart", "image"]
 
 
@@ -211,7 +216,12 @@ def render_richtext(text):
 
 
 def parse_table(raw):
-    """Convierte lineas 'Etiqueta | val1 | val2' en labels + columnas de valores."""
+    """Convierte líneas 'Etiqueta | val1 | val2' en:
+    - labels: la primera columna de cada fila,
+    - series: las demás columnas como números (vacío o no numérico -> None),
+    - rows: las filas crudas, como texto (para los gráficos que llevan texto
+      en más de una columna, ej. Sankey: origen | destino | valor).
+    Misma regla que parseChartTable() en static/charts.js."""
     rows = []
     for line in (raw or "").strip().splitlines():
         line = line.strip()
@@ -220,7 +230,7 @@ def parse_table(raw):
         parts = [p.strip() for p in line.split("|")]
         rows.append(parts)
     if not rows:
-        return [], []
+        return [], [], []
     labels = [r[0] for r in rows]
     n_series = max(len(r) for r in rows) - 1
     series = []
@@ -232,7 +242,7 @@ def parse_table(raw):
             except ValueError:
                 vals.append(None)
         series.append(vals)
-    return labels, series
+    return labels, series, rows
 
 
 def fmt_num(v):
@@ -404,17 +414,24 @@ def admin_edit_post(post_id):
     for b in blocks:
         data = dict(b["data"])
         if b["type"] == "chart":
-            rows = []
-            for i, lab in enumerate(data.get("labels", [])):
-                vals = [fmt_num(s[i]) if i < len(s) and s[i] is not None else ""
-                        for s in data.get("series", [])]
-                rows.append(" | ".join([lab] + vals))
+            # Si el gráfico se guardó con las filas crudas, se devuelven tal
+            # cual (conservan columnas de texto, ej. Sankey). Los gráficos
+            # viejos, sin "rows", se reconstruyen desde labels + series.
+            if data.get("rows"):
+                rows = [" | ".join(r) for r in data["rows"]]
+            else:
+                rows = []
+                for i, lab in enumerate(data.get("labels", [])):
+                    vals = [fmt_num(s[i]) if i < len(s) and s[i] is not None else ""
+                            for s in data.get("series", [])]
+                    rows.append(" | ".join([lab] + vals))
             data = {
                 "chart_type": data.get("chart_type", "bar_comparison"),
                 "title": data.get("title", ""), "subtitle": data.get("subtitle", ""),
                 "source": data.get("source", ""), "color": data.get("color", "orange"),
                 "series_names": ", ".join(data.get("series_names", [])),
                 "table": "\n".join(rows),
+                "options": data.get("options") or {},
             }
         editable.append({"type": b["type"], "data": data})
     accent = post["accent"] if post["accent"] in ACCENTS else "blue"
@@ -424,7 +441,7 @@ def admin_edit_post(post_id):
     }
     return render_template(
         "admin_edit.html", post=post, editor=editor, accent_hex=ACCENTS[accent]["hex"],
-        accents=ACCENTS, chart_types=CHART_TYPES,
+        accents=ACCENTS,
     )
 
 
@@ -488,7 +505,7 @@ def block_data_from_form(block_type, form):
     if block_type == "image":
         return {"url": form.get("url", "").strip(), "caption": form.get("caption", "").strip()}
     if block_type == "chart":
-        labels, series = parse_table(form.get("table", ""))
+        labels, series, rows = parse_table(form.get("table", ""))
         series_names = [s.strip() for s in form.get("series_names", "").split(",") if s.strip()]
         chart_type = form.get("chart_type", "bar_comparison")
         if chart_type not in CHART_TYPES:
@@ -496,6 +513,15 @@ def block_data_from_form(block_type, form):
         color = form.get("color", "orange")
         if color not in ACCENTS:
             color = "orange"
+        # Opciones propias de cada tipo (título de eje, unidad, etc.): un dict
+        # chico de texto. Se aceptan solo claves con pinta de identificador y
+        # se descartan las vacías.
+        raw_opts = form.get("options") or {}
+        options = {}
+        if isinstance(raw_opts, dict):
+            for k, v in raw_opts.items():
+                if re.fullmatch(r"[a-z][a-z0-9_]{0,30}", str(k)) and str(v or "").strip():
+                    options[str(k)] = str(v).strip()[:200]
         return {
             "chart_type": chart_type,
             "title": form.get("title", "").strip(),
@@ -504,7 +530,9 @@ def block_data_from_form(block_type, form):
             "color": color,
             "labels": labels,
             "series": series,
+            "rows": rows,
             "series_names": series_names,
+            "options": options,
         }
     return {}
 
@@ -534,9 +562,15 @@ def admin_save_post(post_id):
     for raw in payload["blocks"]:
         if not isinstance(raw, dict) or raw.get("type") not in BLOCK_TYPES:
             return {"ok": False, "error": "Tipo de bloque inválido."}, 400
-        data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
-        # block_data_from_form espera strings: null -> "".
-        data = {k: ("" if v is None else str(v)) for k, v in data.items()}
+        raw_data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+        # block_data_from_form espera strings (null -> ""); "options" del
+        # gráfico es un dict de strings.
+        data = {}
+        for k, v in raw_data.items():
+            if isinstance(v, dict):
+                data[k] = {str(kk): ("" if vv is None else str(vv)) for kk, vv in v.items()}
+            else:
+                data[k] = "" if v is None else str(v)
         blocks.append((raw["type"], block_data_from_form(raw["type"], data)))
 
     now = datetime.now(timezone.utc).isoformat()

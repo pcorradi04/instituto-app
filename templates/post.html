@@ -37,7 +37,7 @@
       <div class="chart-card">
         {% if b.data.title %}<h3>{{ b.data.title }}</h3>{% endif %}
         {% if b.data.subtitle %}<div class="sub">{{ b.data.subtitle }}</div>{% endif %}
-        <div class="chart-wrap"><canvas id="chart-{{ b.id }}"></canvas></div>
+        <div class="chart-wrap" id="chart-{{ b.id }}"></div>
         {% if b.data.source %}<div class="chart-source">Fuente: {{ b.data.source }}</div>{% endif %}
       </div>
     {% endif %}
@@ -55,6 +55,17 @@ const ACCENT_HEX = {{ accents_hex | tojson }};
 CHART_DEFS.forEach(def => {
   const el = document.getElementById(def.id);
   if (el) renderPostChart(el, def, ACCENT_HEX, { animate: true });
+});
+// Los gráficos hechos en SVG/HTML se dibujan al ancho de su caja: si cambia
+// el ancho de la ventana, se redibujan. Los de Chart.js se adaptan solos.
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => CHART_DEFS.forEach(def => {
+    const spec = CHART_SPECS[def.chart_type];
+    const el = document.getElementById(def.id);
+    if (el && spec && spec.kind !== 'canvas') renderPostChart(el, def, ACCENT_HEX, { animate: false });
+  }), 200);
 });
 </script>
 {% endblock %}

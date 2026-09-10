@@ -73,7 +73,6 @@
 <script>
 const INITIAL = {{ editor | tojson }};
 const ACCENTS = {{ accents | tojson }};
-const CHART_TYPES = {{ chart_types | tojson }};
 const SAVE_URL = "{{ url_for('admin_save_post', post_id=post['id']) }}";
 const UPLOAD_URL = "{{ url_for('admin_upload') }}";
 </script>
@@ -234,35 +233,66 @@ const UPLOAD_URL = "{{ url_for('admin_upload') }}";
     },
     chart(b) {
       const d = b.data;
-      const typeOpts = Object.entries(CHART_TYPES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+      if (!d.options || typeof d.options !== 'object') d.options = {};
+      if (!CHART_SPECS[d.chart_type]) d.chart_type = 'bar_comparison';
       const colorOpts = Object.entries(ACCENTS).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
       const n = el(`<div class="blk" data-uid="${b.uid}"><div class="chart-card">
         <h3><input class="ed" placeholder="Título del gráfico"></h3>
         <div class="sub"><input class="ed" placeholder="Subtítulo: unidad, período, aclaración (opcional)"></div>
-        <div class="chart-wrap"><canvas></canvas></div>
+        <div class="chart-wrap"></div>
         <div class="chart-empty" hidden>Cargá los datos acá abajo y el gráfico aparece en este lugar.</div>
         <div class="chart-source">Fuente: <input class="ed inline" placeholder="Secretaría de Energía; INDEC"></div>
         <div class="chart-data">
-          <div class="row">
-            <label>Tipo</label><select class="ctype">${typeOpts}</select>
-            <label>Color</label><select class="ccolor">${colorOpts}</select>
-            <label>Series</label><input type="text" class="cnames" placeholder="Nombres de las series, separados por coma: Energía, INDEC">
-          </div>
-          <textarea class="ctable" placeholder="Una fila por línea: Etiqueta | valor serie 1 | valor serie 2&#10;Mayo 2026 | 959.1 | 1172&#10;Junio 2026 | 401.3 | 918"></textarea>
-          <div class="hint">El gráfico se redibuja solo mientras escribís. Si falta un dato, dejá el valor vacío.</div>
+          <div class="row"><label>Tipo</label><select class="ctype"></select><label>Color</label><select class="ccolor">${colorOpts}</select></div>
+          <div class="row cnames-row"><label class="cnames-label"></label><input type="text" class="cnames"></div>
+          <div class="row copts"></div>
+          <div class="ccols"></div>
+          <textarea class="ctable"></textarea>
+          <div class="hint chint"></div>
         </div></div></div>`);
       n.prepend(tools(b));
       const [inTitle, inSub, inSrc] = n.querySelectorAll('input.ed');
       bind(inTitle, d, 'title'); bind(inSub, d, 'subtitle'); bind(inSrc, d, 'source');
-      const selType = n.querySelector('.ctype'), selColor = n.querySelector('.ccolor');
-      selType.value = d.chart_type || 'bar_comparison';
+      const sel = n.querySelector('.ctype'), selColor = n.querySelector('.ccolor');
+      // El selector de tipo se arma desde CHART_SPECS (static/charts.js), por grupos.
+      CHART_GROUPS.forEach(g => {
+        const og = document.createElement('optgroup'); og.label = g;
+        Object.entries(CHART_SPECS).forEach(([k, s]) => {
+          if (s.group !== g) return;
+          const o = document.createElement('option'); o.value = k; o.textContent = s.label; og.appendChild(o);
+        });
+        sel.appendChild(og);
+      });
+      sel.value = d.chart_type;
       selColor.value = d.color || 'orange';
       let timer = null;
       const redraw = () => { clearTimeout(timer); timer = setTimeout(() => drawChart(n, d), 150); };
-      selType.addEventListener('change', () => { d.chart_type = selType.value; dirty(); redraw(); });
+      const inNames = n.querySelector('.cnames'), taTable = n.querySelector('.ctable'), optsRow = n.querySelector('.copts');
+      bind(inNames, d, 'series_names', redraw);
+      bind(taTable, d, 'table', redraw);
+      // El panel de carga cambia con el tipo: qué columnas lleva la tabla, qué
+      // significan los "nombres de series" y qué opciones tiene.
+      function buildPanel() {
+        const spec = CHART_SPECS[d.chart_type];
+        n.querySelector('.cnames-row').hidden = !spec.names;
+        n.querySelector('.cnames-label').textContent = spec.names || '';
+        inNames.placeholder = spec.names_placeholder || 'Separados por coma';
+        optsRow.innerHTML = '';
+        (spec.options || []).forEach(o => {
+          const lab = document.createElement('label'); lab.textContent = o.label;
+          const inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = o.placeholder || '';
+          inp.value = d.options[o.key] || '';
+          inp.addEventListener('input', () => { d.options[o.key] = inp.value; dirty(); redraw(); });
+          optsRow.append(lab, inp);
+        });
+        optsRow.hidden = !(spec.options && spec.options.length);
+        n.querySelector('.ccols').textContent = 'Columnas: ' + spec.columns;
+        taTable.placeholder = spec.placeholder;
+        n.querySelector('.chint').textContent = spec.hint + ' Una fila por línea, columnas separadas con "|"; si falta un dato, dejá el valor vacío.';
+      }
+      sel.addEventListener('change', () => { d.chart_type = sel.value; dirty(); buildPanel(); redraw(); });
       selColor.addEventListener('change', () => { d.color = selColor.value; dirty(); redraw(); });
-      bind(n.querySelector('.cnames'), d, 'series_names', redraw);
-      bind(n.querySelector('.ctable'), d, 'table', redraw);
+      buildPanel();
       return n;
     },
     image(b) {
@@ -315,32 +345,30 @@ const UPLOAD_URL = "{{ url_for('admin_upload') }}";
     },
   };
 
-  // Misma regla que parse_table() en app.py: "Etiqueta | v1 | v2" por línea;
-  // vacío o no-numérico => sin dato.
-  function parseTable(text) {
-    const rows = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => l.split('|').map(p => p.trim()));
-    if (!rows.length) return { labels: [], series: [] };
-    const labels = rows.map(r => r[0]);
-    const nSeries = Math.max(...rows.map(r => r.length)) - 1;
-    const series = [];
-    for (let i = 0; i < nSeries; i++) {
-      series.push(rows.map(r => { const v = r[i + 1]; if (v === undefined || v === '') return null; const f = Number(v); return isNaN(f) ? null : f; }));
-    }
-    return { labels, series };
-  }
+  // Dibuja el gráfico de un bloque con los datos actuales (parseChartTable y
+  // renderPostChart vienen de static/charts.js, los mismos que usa el post).
   function drawChart(node, d) {
-    const wrap = node.querySelector('.chart-wrap'), empty = node.querySelector('.chart-empty'), canvas = node.querySelector('canvas');
-    if (typeof Chart === 'undefined') {
+    const wrap = node.querySelector('.chart-wrap'), empty = node.querySelector('.chart-empty');
+    const spec = CHART_SPECS[d.chart_type] || CHART_SPECS.bar_comparison;
+    if (spec.kind === 'canvas' && typeof Chart === 'undefined') {
       wrap.hidden = true; empty.hidden = false;
       empty.textContent = 'No se pudo cargar la librería de gráficos (¿sin internet?). Los datos se guardan igual y el gráfico se ve en el post.';
       return;
     }
-    const { labels, series } = parseTable(d.table);
-    const has = labels.length > 0 && series.length > 0;
+    const parsed = parseChartTable(d.table);
+    const has = parsed.rows.length > 0;
     wrap.hidden = !has; empty.hidden = has;
     if (!has) return;
     const names = String(d.series_names || '').split(',').map(s => s.trim()).filter(Boolean);
-    renderPostChart(canvas, { chart_type: d.chart_type, labels, series, series_names: names, color: d.color }, ACCENT_HEX, { animate: false });
+    renderPostChart(wrap, { chart_type: d.chart_type, labels: parsed.labels, series: parsed.series, rows: parsed.rows,
+                            series_names: names, color: d.color, options: d.options }, ACCENT_HEX, { animate: false });
+  }
+  function redrawAllCharts() {
+    state.blocks.forEach(b => {
+      if (b.type !== 'chart') return;
+      const n = container.querySelector(`[data-uid="${b.uid}"]`);
+      if (n) drawChart(n, b.data);
+    });
   }
 
   function renderAll() {
@@ -393,7 +421,8 @@ const UPLOAD_URL = "{{ url_for('admin_upload') }}";
   $('#btnPublish').addEventListener('click', async () => { if (await save()) $('#publishForm').submit(); });
   document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); } });
   window.addEventListener('beforeunload', e => { if (isDirty) { e.preventDefault(); e.returnValue = ''; } });
-  window.addEventListener('resize', () => growAll());
+  let resizeTimer = null;
+  window.addEventListener('resize', () => { growAll(); clearTimeout(resizeTimer); resizeTimer = setTimeout(redrawAllCharts, 200); });
 
   renderAll();
   growAll();

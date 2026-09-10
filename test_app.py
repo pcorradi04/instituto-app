@@ -130,6 +130,27 @@ ok(r.status_code == 400 and len(blocks()) == 6 and db_row("SELECT title FROM pos
 ok(save({"title": "x", "blocks": []}, client=anon).status_code == 302, "guardar sin login -> redirige a login")
 ok(c.post("/admin/posts/9999/save", data="{}", content_type="application/json").status_code == 404, "guardar post inexistente -> 404")
 
+# --- tipos de gráfico: filas crudas, opciones, tipo desconocido -----------
+r = save({**GENERAL, "blocks": [
+    {"type": "chart", "data": {"chart_type": "scatter", "table": "Crudo | 959.1 | 1172\nGas | 30.4 | 52",
+                               "series_names": "Energía, INDEC", "options": {"diagonal": "si", "Clave Rara!": "x", "y_title": None, "unit": ""}}},
+    {"type": "chart", "data": {"chart_type": "sankey", "table": "Gas 2025 | Chile | 340.8\nGas 2025 | Uruguay | 5.1"}},
+    {"type": "chart", "data": {"chart_type": "inexistente", "table": "a | 1"}},
+]})
+bl = blocks()
+ok(r.status_code == 200 and bl[0]["data"]["rows"] == [["Crudo", "959.1", "1172"], ["Gas", "30.4", "52"]],
+   "scatter: se guardan las filas crudas (texto) además de labels/series")
+ok(bl[0]["data"]["options"] == {"diagonal": "si"}, "opciones del gráfico: se guardan las válidas, se descartan claves raras y valores vacíos")
+ok(bl[1]["data"]["rows"][0] == ["Gas 2025", "Chile", "340.8"] and bl[1]["data"]["series"][0] == [None, None],
+   "sankey: una columna de texto en el medio no rompe el parseo")
+ok(bl[2]["data"]["chart_type"] == "bar_comparison", "tipo de gráfico desconocido -> barras agrupadas")
+html = text(c.get("/post/" + slug))
+ok('"chart_type": "scatter"' in html and '"rows": [["Crudo", "959.1", "1172"]' in html and '"diagonal": "si"' in html,
+   "el post recibe tipo, filas y opciones para charts.js")
+ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
+ok('"table": "Gas 2025 | Chile | 340.8\\nGas 2025 | Uruguay | 5.1"' in ehtml, "editor: la tabla del Sankey vuelve con su columna de texto")
+save({**GENERAL, "blocks": BLOCKS})
+
 # --- render público del post ---------------------------------------------
 html = text(c.get("/post/" + slug))
 ok('<span class="num">I</span>' in html and '<span class="num">II</span>' in html, "numeración romana I, II")
@@ -141,8 +162,8 @@ ok('style="--accent:#1F4E5F"' in html, "el color de acento del post llega al CSS
 
 # --- el editor devuelve lo guardado en forma editable --------------------
 ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
-ok('"table": "Ene | 1 | 2.5\\nFeb | 3 | \\nMar |  | 4"' in ehtml and '"series_names": "A, B"' in ehtml,
-   "editor: el gráfico vuelve como tabla de texto (sin .0) y series como texto")
+ok('"table": "Ene | 1 | 2.5\\nFeb | 3 | \\nMar | x | 4"' in ehtml and '"series_names": "A, B"' in ehtml,
+   "editor: el gráfico vuelve como tabla de texto tal como se escribió, y series como texto")
 ok('style="--accent:#1F4E5F"' in ehtml, "editor: arranca con el acento del post")
 
 # --- reordenar y borrar bloques = mandar otra lista -----------------------
