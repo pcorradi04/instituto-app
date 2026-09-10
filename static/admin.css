@@ -32,3 +32,5 @@ body.admin{font-family:'Courier New',monospace; background:#EFEDE7;}
 .flash.error{background:#F3E7E4; color:#A63D2F;}
 .login-box{max-width:340px; margin:80px auto; background:#fff; border:1px solid var(--line); padding:28px;}
 .login-box h1{font-family:Georgia,serif; font-size:20px; margin-top:0;}
+
+.field input[type=file]{font-family:'Courier New',monospace;font-size:12.5px;padding:6px 0;}

@@ -72,7 +72,9 @@ python test_app.py
      Junio 2026 | 401.3 | 918
      ```
      (Etiqueta, después cada valor separado por `|`.)
-   - **Imagen**: una URL + epígrafe.
+   - **Imagen**: subís un archivo desde tu computadora (PNG, JPG, GIF o
+     WebP, hasta 10 MB) o pegás la URL de una imagen que ya está en
+     internet, más un epígrafe. Las subidas quedan en `instance/uploads/`.
 5. Los bloques ya cargados se pueden reordenar (↑ ↓), editar o borrar.
 6. Cuando está listo, tocás **"Publicar este post"** arriba — antes de eso
    queda como borrador (solo lo ves vos, logueado).
@@ -88,8 +90,9 @@ instituto-app/
 ├── Procfile             → le dice al hosting cómo arrancar la app (gunicorn)
 ├── .env.example         → plantilla de la configuración secreta (copiar como .env)
 ├── venv/                → el entorno virtual de Python (local, no va a git)
-├── instance/
-│   └── instituto.db     → la base de datos (se crea sola, no va a git)
+├── instance/            → TODO el contenido del sitio vive acá (no va a git; hacé backup)
+│   ├── instituto.db     → la base de datos (se crea sola)
+│   └── uploads/         → las imágenes subidas desde el panel
 ├── static/
 │   ├── style.css        → el sistema de diseño del sitio público (el que ya conocés)
 │   ├── admin.css         → estilos del panel (funcional, mismo lenguaje visual)
@@ -153,7 +156,9 @@ contrates un "disco persistente" (Render lo cobra aparte) y apuntes la app a
 él con la variable de entorno `DB_PATH` (ej. `DB_PATH=/var/data/instituto.db`).
 PythonAnywhere no tiene ese problema: el disco es persistente de entrada, y
 por eso para una app así de chica es la opción más simple. Sea cual sea el
-hosting, bajate una copia del archivo `.db` cada tanto: es todo el sitio.
+hosting, bajate una copia de la carpeta `instance/` cada tanto (la base más
+las imágenes subidas): es todo el sitio. El paso a paso completo del deploy
+está en `DEPLOY.md`.
 
 El dominio (`institutodeenergia.austral.edu.ar` o el que elijan) se apunta
 después, cuando el hosting esté elegido — es un paso aparte e independiente
@@ -164,8 +169,6 @@ de todo este trabajo.
 - Editor de texto enriquecido tipo Word (hoy los párrafos son texto plano
   con `**negrita**`/`*itálica*` simple — funciona, pero no es "arrastrar y
   soltar").
-- Subida de imágenes propia (hoy se pega una URL; para subir archivos
-  directo hace falta sumar almacenamiento de archivos).
 - Usuarios con nombre y permisos distintos (hoy es una clave compartida).
 - Búsqueda dentro del texto completo de cada post (hoy busca en
   título/copete/etiqueta desde la portada).

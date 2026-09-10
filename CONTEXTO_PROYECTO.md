@@ -289,7 +289,7 @@ entre turnos. Estado al cierre de esa ronda:
   gráficos del post de ejemplo se dibujan (verificado por JS en el
   navegador: `Chart.getChart(canvas)` devuelve instancia, 2 datasets cada
   uno, sin errores de consola). La duda de la sección 8 queda cerrada.
-- **Cambios en `app.py`**, todos cubiertos por `test_app.py` (43 chequeos
+- **Cambios en `app.py`**, todos cubiertos por `test_app.py` (52 chequeos
   sobre una base temporal — correrlo después de cada cambio):
   - `init_db()` corre al importar el módulo. Antes solo corría con
     `python app.py`, así que con gunicorn las tablas no se creaban si
@@ -310,10 +310,23 @@ entre turnos. Estado al cierre de esa ronda:
     0.0.0.0 con el debugger activo: ejecución remota de código en la LAN).
 - **Base**: había 4 bloques huérfanos (post_id=3, de pruebas, sin post
   padre). Borrados. Queda solo el post de ejemplo del seed.
-- **Archivos nuevos**: `test_app.py`, `Procfile`, `.env.example`.
+- **Archivos nuevos**: `test_app.py`, `Procfile`, `.env.example`,
+  `DEPLOY.md` (paso a paso de PythonAnywhere), `pythonanywhere_wsgi.py`.
   `.gitignore` ahora excluye `instance/` (el README decía que no se subiera
   pero el gitignore no lo cubría). `requirements.txt` suma gunicorn y
   python-dotenv.
+- **Subida de imágenes** (segunda parte de la ronda): el bloque "imagen"
+  acepta un archivo además de la URL. Se valida por firma binaria
+  (`detect_image_type`: PNG/JPG/GIF/WebP), no por extensión; tope 10 MB
+  (`MAX_CONTENT_LENGTH` + handler 413 con mensaje); se guarda en
+  `UPLOAD_DIR` (default `instance/uploads/`, configurable por env) con
+  nombre `fecha-random-nombre.ext` y se sirve desde `/uploads/<archivo>`.
+  Los archivos reemplazados o de bloques borrados NO se eliminan del disco
+  (decisión: simple y sin riesgo de borrar algo referenciado; si algún día
+  molesta, se agrega una limpieza de huérfanos).
+- **Git**: repo inicializado en la carpeta del proyecto con identidad local
+  (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
+  GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.
 - **No re-verificado esta ronda**: el JS de `admin_edit.html` que oculta y
   deshabilita los sub-formularios (el navegador integrado no ejecuta
   scripts de archivos estáticos). No es crítico: el test manda los campos

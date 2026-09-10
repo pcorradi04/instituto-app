@@ -10,6 +10,7 @@ Correr después de cualquier cambio en app.py o en los templates:
 Si todo está bien termina con "RESULTADO: TODO OK". Si algo falla, cada
 línea FAIL dice qué se esperaba.
 """
+import io
 import json
 import os
 import re
@@ -138,6 +139,46 @@ c.post(f"/admin/posts/{pid}/blocks/{blocks[4]['id']}/delete")
 ok(len(appmod.get_post_blocks(db, pid)) == 5, "bloque borrado")
 ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
 ok("Ene | 1 | 2.5\nFeb | 3 | \nMar |  | 4" in ehtml, "tabla del gráfico reconstruida para reeditar (sin .0)")
+
+# --- imágenes subidas ----------------------------------------------------
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+JPG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+n_before = len(appmod.get_post_blocks(db, pid))
+r = c.post(f"/admin/posts/{pid}/blocks",
+           data={"type": "image", "image_caption": "Foto", "image_url": "",
+                 "image_file": (io.BytesIO(PNG), "Foto de Prueba.PNG")},
+           content_type="multipart/form-data", follow_redirects=True)
+img_block = appmod.get_post_blocks(db, pid)[-1]
+img_url = img_block["data"]["url"]
+ok(img_block["type"] == "image" and img_url.startswith("/uploads/") and img_url.endswith("-foto_de_prueba.png"),
+   "imagen subida -> bloque con URL local: " + img_url)
+r = anon.get(img_url)
+ok(r.status_code == 200 and r.mimetype == "image/png" and r.data == PNG, "la imagen subida se sirve públicamente como image/png")
+ok(os.path.isfile(os.path.join(appmod.UPLOAD_DIR, os.path.basename(img_url))), "archivo guardado en UPLOAD_DIR (al lado de la base)")
+r = c.post(f"/admin/posts/{pid}/blocks",
+           data={"type": "image", "image_file": (io.BytesIO(b"MZ esto no es una imagen"), "virus.png")},
+           content_type="multipart/form-data", follow_redirects=True)
+ok("no parece una imagen" in text(r) and len(appmod.get_post_blocks(db, pid)) == n_before + 1,
+   "archivo que no es imagen: rechazado aunque se llame .png")
+r = c.post(f"/admin/posts/{pid}/blocks", data={"type": "image", "image_url": "", "image_caption": "sin nada"}, follow_redirects=True)
+ok("subí un archivo o pegá una URL" in text(r) and len(appmod.get_post_blocks(db, pid)) == n_before + 1,
+   "imagen sin archivo ni URL: rechazada")
+r = c.post(f"/admin/posts/{pid}/blocks/{img_block['id']}",
+           data={"caption": "Foto nueva", "url": img_url, "file": (io.BytesIO(JPG), "otra.jpeg")},
+           content_type="multipart/form-data", follow_redirects=True)
+b_new = appmod.get_post_blocks(db, pid)[-1]
+ok(b_new["data"]["url"].endswith("-otra.jpg") and b_new["data"]["caption"] == "Foto nueva",
+   "editar bloque con archivo nuevo reemplaza la URL (extensión según contenido real)")
+big = b"\x89PNG\r\n\x1a\n" + b"\x00" * (11 * 1024 * 1024)
+r = c.post(f"/admin/posts/{pid}/blocks",
+           data={"type": "image", "image_file": (io.BytesIO(big), "grande.png")},
+           content_type="multipart/form-data", follow_redirects=True)
+ok("demasiado grande" in text(r) and len(appmod.get_post_blocks(db, pid)) == n_before + 1,
+   "imagen de 11 MB: rechazada con mensaje claro")
+ok(anon.get("/uploads/../app.py").status_code == 404, "no se puede salir de la carpeta de uploads")
+ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
+ok('name="image_file"' in ehtml and 'name="file"' in ehtml and ehtml.count('enctype="multipart/form-data"') >= 2
+   and f'<img src="{b_new["data"]["url"]}"' in ehtml, "editor: campos de subida, formularios multipart y vista previa de la imagen")
 
 # --- publicar, buscar, borrar --------------------------------------------
 r = c.post(f"/admin/posts/{pid}/publish", follow_redirects=True)

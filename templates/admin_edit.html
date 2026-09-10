@@ -80,7 +80,7 @@
       </div>
     </div>
 
-    <form method="post" action="{{ url_for('admin_update_block', post_id=post['id'], block_id=b['id']) }}">
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('admin_update_block', post_id=post['id'], block_id=b['id']) }}">
       {% if b.type == 'heading' %}
         <div class="field"><label>Etiqueta (small caps, al lado del numeral)</label><input type="text" name="tag" value="{{ b.data.tag }}"></div>
         <div class="field"><label>Título de la sección</label><input type="text" name="title" value="{{ b.data.title }}"></div>
@@ -104,6 +104,16 @@
         <div class="field"><label>Texto</label><textarea name="text">{{ b.data.text }}</textarea></div>
 
       {% elif b.type == 'image' %}
+        {% if b.data.url %}
+        <div class="field">
+          <img src="{{ b.data.url }}" alt="" style="max-height:140px; max-width:100%; display:block; border:1px solid var(--line); background:#fff;">
+        </div>
+        {% endif %}
+        <div class="field">
+          <label>Reemplazar por otro archivo</label>
+          <input type="file" name="file" accept=".png,.jpg,.jpeg,.gif,.webp,image/png,image/jpeg,image/gif,image/webp">
+          <div class="hint">PNG, JPG, GIF o WebP, hasta 10 MB. Si no elegís nada, se conserva la imagen actual.</div>
+        </div>
         <div class="field"><label>URL de la imagen</label><input type="text" name="url" value="{{ b.data.url }}"></div>
         <div class="field"><label>Epígrafe / fuente</label><input type="text" name="caption" value="{{ b.data.caption }}"></div>
 
@@ -157,7 +167,7 @@
       </select>
     </div>
 
-    <form method="post" action="{{ url_for('admin_add_block', post_id=post['id']) }}">
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('admin_add_block', post_id=post['id']) }}">
       <input type="hidden" name="type" id="typeField" value="heading">
 
       <div id="form-heading" class="block-form">
@@ -195,7 +205,12 @@
       </div>
 
       <div id="form-image" class="block-form" style="display:none;">
-        <div class="field"><label>URL de la imagen</label><input type="text" name="image_url"></div>
+        <div class="field">
+          <label>Subir una imagen desde tu computadora</label>
+          <input type="file" name="image_file" accept=".png,.jpg,.jpeg,.gif,.webp,image/png,image/jpeg,image/gif,image/webp">
+          <div class="hint">PNG, JPG, GIF o WebP, hasta 10 MB. Queda guardada en el servidor junto con el post.</div>
+        </div>
+        <div class="field"><label>O pegar la URL de una imagen que ya está en internet</label><input type="text" name="image_url" placeholder="https://..."></div>
         <div class="field"><label>Epígrafe / fuente</label><input type="text" name="image_caption"></div>
       </div>
 

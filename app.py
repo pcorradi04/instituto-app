@@ -19,15 +19,17 @@ import re
 import json
 import sqlite3
 import unicodedata
+import secrets
 from datetime import datetime, timezone
 from functools import wraps
 
 from flask import (
     Flask, request, session, redirect, url_for, render_template,
-    g, flash, abort
+    g, flash, abort, send_from_directory
 )
 from markupsafe import escape
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -43,6 +45,12 @@ except ImportError:
 # hosting), definí DB_PATH como variable de entorno.
 DB_PATH = os.environ.get("DB_PATH") or os.path.join(BASE_DIR, "instance", "instituto.db")
 
+# Carpeta donde se guardan las imágenes subidas desde el panel. Por defecto
+# al lado de la base (instance/uploads/), así un backup de instance/ se lleva
+# todo el contenido del sitio junto.
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR") or os.path.join(os.path.dirname(DB_PATH), "uploads")
+MAX_UPLOAD_MB = 10
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "clave-de-desarrollo-cambiar-en-produccion")
 # La cookie de sesión no viaja en formularios enviados desde OTRO sitio:
@@ -53,6 +61,9 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 # En producción (con HTTPS) poné SECURE_COOKIES=1 en el .env: la cookie de
 # sesión solo viaja cifrada. Apagado por defecto para que funcione en local.
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SECURE_COOKIES", "0") == "1"
+# Tope de tamaño para cualquier request; en la práctica, el máximo de una
+# imagen subida. Si se pasa, Flask corta con un error 413 que se maneja abajo.
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 
 # Clave del panel de administración. En producción, definila como variable
 # de entorno ADMIN_PASSWORD en vez de dejarla acá.
@@ -246,6 +257,55 @@ def next_position(db, post_id):
         "SELECT COALESCE(MAX(position), -1) + 1 AS p FROM blocks WHERE post_id = ?", (post_id,)
     ).fetchone()
     return row["p"]
+
+
+# ---------------------------------------------------------------------------
+# Imágenes subidas desde el panel
+# ---------------------------------------------------------------------------
+
+def detect_image_type(head):
+    """Reconoce el formato por los primeros bytes del archivo (su "firma"),
+    no por la extensión que dice tener: un .exe renombrado a .png no pasa."""
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if head[:6] in (b"GIF87a", b"GIF89a"):
+        return "gif"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
+def save_upload(fs):
+    """Guarda un archivo subido (FileStorage de Werkzeug) en UPLOAD_DIR y
+    devuelve su URL pública (/uploads/...). Lanza ValueError con un mensaje
+    para el usuario si el archivo no sirve."""
+    head = fs.stream.read(16)
+    fs.stream.seek(0)
+    ext = detect_image_type(head)
+    if not ext:
+        raise ValueError("El archivo no parece una imagen. Se aceptan PNG, JPG, GIF y WebP.")
+    base = secure_filename(os.path.splitext(fs.filename or "")[0]).lower()[:40] or "imagen"
+    # Fecha + sufijo aleatorio: dos archivos con el mismo nombre no se pisan,
+    # y la extensión sale del contenido real, no del nombre original.
+    name = f"{datetime.now(timezone.utc):%Y%m%d}-{secrets.token_hex(3)}-{base}.{ext}"
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    fs.save(os.path.join(UPLOAD_DIR, name))
+    return url_for("uploaded_file", filename=name)
+
+
+@app.route("/uploads/<filename>")
+def uploaded_file(filename):
+    # send_from_directory rechaza rutas que intenten salir de UPLOAD_DIR.
+    return send_from_directory(UPLOAD_DIR, filename)
+
+
+@app.errorhandler(413)
+def upload_too_large(e):
+    flash(f"La imagen es demasiado grande: el máximo es {MAX_UPLOAD_MB} MB.", "error")
+    ref = request.referrer or ""
+    return redirect(ref if ref.startswith(request.host_url) else url_for("admin_dashboard"))
 
 
 # ---------------------------------------------------------------------------
@@ -479,6 +539,17 @@ def admin_add_block(post_id):
         flash("Tipo de bloque inválido.", "error")
         return redirect(url_for("admin_edit_post", post_id=post_id))
     data = block_data_from_form(block_type, strip_prefix(request.form, block_type))
+    if block_type == "image":
+        f = request.files.get("image_file")
+        if f and f.filename:
+            try:
+                data["url"] = save_upload(f)
+            except ValueError as e:
+                flash(str(e), "error")
+                return redirect(url_for("admin_edit_post", post_id=post_id) + "#blocks")
+        if not data["url"]:
+            flash("Para agregar una imagen, subí un archivo o pegá una URL.", "error")
+            return redirect(url_for("admin_edit_post", post_id=post_id) + "#blocks")
     pos = next_position(db, post_id)
     db.execute(
         "INSERT INTO blocks (post_id, position, type, data) VALUES (?, ?, ?, ?)",
@@ -498,6 +569,14 @@ def admin_update_block(post_id, block_id):
     if not block:
         abort(404)
     data = block_data_from_form(block["type"], request.form)
+    if block["type"] == "image":
+        f = request.files.get("file")
+        if f and f.filename:
+            try:
+                data["url"] = save_upload(f)
+            except ValueError as e:
+                flash(str(e), "error")
+                return redirect(url_for("admin_edit_post", post_id=post_id) + "#blocks")
     db.execute("UPDATE blocks SET data = ? WHERE id = ?", (json.dumps(data, ensure_ascii=False), block_id))
     db.execute("UPDATE posts SET updated_at=? WHERE id=?", (datetime.now(timezone.utc).isoformat(), post_id))
     db.commit()
