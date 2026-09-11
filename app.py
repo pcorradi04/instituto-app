@@ -20,7 +20,7 @@ import json
 import sqlite3
 import unicodedata
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from functools import wraps
 
 from flask import (
@@ -87,6 +87,12 @@ CHART_TYPES = [
 ]
 BLOCK_TYPES = ["heading", "paragraph", "callout", "chart", "image"]
 
+# Comentarios de lectores. Se publican después de que alguien del equipo los
+# aprueba desde el panel (decisión del Instituto: empezar moderado y aflojar
+# después). Las respuestas del equipo llevan esta firma y salen al instante.
+STAFF_NAME = "Instituto de Energía"
+COMMENT_LIMIT_PER_10MIN = 3   # comentarios por dirección IP cada 10 minutos
+
 
 # ---------------------------------------------------------------------------
 # Base de datos
@@ -131,6 +137,18 @@ def init_db():
         position INTEGER NOT NULL,
         type TEXT NOT NULL,
         data TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        parent_id INTEGER REFERENCES comments(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        email TEXT DEFAULT '',
+        body TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        is_staff INTEGER NOT NULL DEFAULT 0,
+        ip TEXT DEFAULT '',
+        created_at TEXT NOT NULL
     );
     """)
     db.commit()
@@ -213,6 +231,74 @@ def render_richtext(text):
     text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", text)
     paras = [p.strip() for p in text.split("\n\n") if p.strip()]
     return "".join(f"<p>{p.replace(chr(10), '<br>')}</p>" for p in paras)
+
+
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+         "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
+
+def fecha_es(iso, hora=False):
+    """'2026-09-10T22:15:00+00:00' -> '10 de septiembre de 2026' (hora de
+    Argentina, UTC-3 fijo: el país no cambia de horario)."""
+    if not iso:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso)
+    except ValueError:
+        return iso[:10]
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    dt = dt.astimezone(timezone(timedelta(hours=-3)))
+    s = f"{dt.day} de {MESES[dt.month - 1]} de {dt.year}"
+    return s + (f", {dt:%H:%M}" if hora else "")
+
+
+app.jinja_env.filters["fecha_es"] = fecha_es
+
+
+def client_ip():
+    """IP del visitante. Detrás del proxy del hosting viene en X-Forwarded-For."""
+    return (request.access_route[0] if request.access_route else request.remote_addr) or ""
+
+
+def get_comments(db, post_id, include_pending=False):
+    """Comentarios de un post como árbol de un solo nivel, en orden
+    cronológico: [{...comentario, "replies": [...]}, ...]. Los pendientes
+    solo se incluyen para el admin (que los ve marcados en el post)."""
+    if include_pending:
+        rows = db.execute("SELECT * FROM comments WHERE post_id = ? ORDER BY created_at ASC", (post_id,)).fetchall()
+    else:
+        rows = db.execute("SELECT * FROM comments WHERE post_id = ? AND status = 'approved' ORDER BY created_at ASC",
+                          (post_id,)).fetchall()
+    roots, by_id = [], {}
+    for r in rows:
+        c = dict(r)
+        c["replies"] = []
+        c["html"] = render_richtext(c["body"])
+        by_id[c["id"]] = c
+    for c in by_id.values():
+        if c["parent_id"]:
+            parent = by_id.get(c["parent_id"])
+            if parent:
+                parent["replies"].append(c)
+            # Respuesta a un comentario todavía no aprobado: no se muestra.
+        else:
+            roots.append(c)
+    return roots
+
+
+def comment_counts(db):
+    """{post_id: cantidad de comentarios aprobados}, para la portada."""
+    return {r["post_id"]: r["c"] for r in db.execute(
+        "SELECT post_id, COUNT(*) AS c FROM comments WHERE status = 'approved' GROUP BY post_id")}
+
+
+def safe_next(default):
+    """Ruta interna a la que volver después de una acción del panel."""
+    nxt = request.form.get("next", "")
+    if not nxt.startswith("/") or nxt.startswith("//"):
+        return default
+    return nxt
 
 
 def parse_table(raw):
@@ -335,7 +421,7 @@ def index():
         posts = db.execute(
             "SELECT * FROM posts WHERE status = 'published' ORDER BY published_at DESC"
         ).fetchall()
-    return render_template("index.html", posts=posts, q=q,
+    return render_template("index.html", posts=posts, q=q, comment_counts=comment_counts(db),
                            accents_hex={k: v["hex"] for k, v in ACCENTS.items()})
 
 
@@ -364,11 +450,70 @@ def show_post(slug):
             chart_defs.append({"id": f"chart-{b['id']}", **b["data"]})
 
     accent = post["accent"] if post["accent"] in ACCENTS else "blue"
+    is_admin = bool(session.get("is_admin"))
+    comments = get_comments(db, post["id"], include_pending=is_admin)
+    n_comments = db.execute(
+        "SELECT COUNT(*) AS c FROM comments WHERE post_id = ? AND status = 'approved'", (post["id"],)
+    ).fetchone()["c"]
     return render_template(
         "post.html", post=post, blocks=blocks, chart_defs=chart_defs,
         accent_hex=ACCENTS[accent]["hex"],
         accents_hex={k: v["hex"] for k, v in ACCENTS.items()},
+        comments=comments, n_comments=n_comments, staff_name=STAFF_NAME,
+        commenter_name=session.get("commenter_name", ""),
     )
+
+
+@app.route("/post/<slug>/comentar", methods=["POST"])
+def post_comment(slug):
+    """Un lector deja un comentario (queda pendiente) o el equipo, logueado,
+    responde (sale al instante con firma institucional)."""
+    db = get_db()
+    post = db.execute("SELECT * FROM posts WHERE slug = ? AND status = 'published'", (slug,)).fetchone()
+    if not post:
+        abort(404)
+    back = url_for("show_post", slug=slug) + "#comentarios"
+    # Campo trampa: el formulario lo lleva oculto. Una persona no lo ve; un
+    # robot lo llena. Si viene con algo, se descarta en silencio.
+    if request.form.get("website", "").strip():
+        return redirect(back)
+    is_admin = bool(session.get("is_admin"))
+    name = STAFF_NAME if is_admin else request.form.get("name", "").strip()[:60]
+    email = "" if is_admin else request.form.get("email", "").strip()[:120]
+    body = request.form.get("body", "").strip()[:3000]
+    if len(name) < 2 or len(body) < 5:
+        flash("Falta el nombre o el comentario es muy corto.", "comment-error")
+        return redirect(back)
+    ip = client_ip()
+    if not is_admin:
+        since = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+        n = db.execute("SELECT COUNT(*) AS c FROM comments WHERE ip = ? AND is_staff = 0 AND created_at > ?",
+                       (ip, since)).fetchone()["c"]
+        if n >= COMMENT_LIMIT_PER_10MIN:
+            flash("Mandaste varios comentarios seguidos. Esperá unos minutos y probá de nuevo.", "comment-error")
+            return redirect(back)
+    # Un solo nivel de respuestas: responder a una respuesta cuelga del
+    # comentario original, así el hilo no se vuelve un árbol ilegible.
+    parent = None
+    parent_id = request.form.get("parent_id", "").strip()
+    if parent_id.isdigit():
+        parent = db.execute("SELECT * FROM comments WHERE id = ? AND post_id = ?", (int(parent_id), post["id"])).fetchone()
+        if parent and parent["parent_id"]:
+            parent = db.execute("SELECT * FROM comments WHERE id = ?", (parent["parent_id"],)).fetchone()
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        """INSERT INTO comments (post_id, parent_id, name, email, body, status, is_staff, ip, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (post["id"], parent["id"] if parent else None, name, email, body,
+         "approved" if is_admin else "pending", 1 if is_admin else 0, ip, now),
+    )
+    db.commit()
+    if is_admin:
+        flash("Respuesta publicada.", "comment-ok")
+    else:
+        session["commenter_name"] = name
+        flash("¡Gracias! Tu comentario se va a publicar cuando lo revise el equipo del Instituto.", "comment-ok")
+    return redirect(back)
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +525,8 @@ def show_post(slug):
 def admin_dashboard():
     db = get_db()
     posts = db.execute("SELECT * FROM posts ORDER BY updated_at DESC").fetchall()
-    return render_template("admin_dashboard.html", posts=posts)
+    pending = db.execute("SELECT COUNT(*) AS c FROM comments WHERE status = 'pending'").fetchone()["c"]
+    return render_template("admin_dashboard.html", posts=posts, pending=pending)
 
 
 @app.route("/admin/posts", methods=["POST"])
@@ -437,7 +583,7 @@ def admin_edit_post(post_id):
     accent = post["accent"] if post["accent"] in ACCENTS else "blue"
     editor = {
         "id": post["id"], "title": post["title"], "eyebrow": post["eyebrow"] or "",
-        "dek": post["dek"] or "", "accent": accent, "blocks": editable,
+        "dek": post["dek"] or "", "author": post["author"] or "", "accent": accent, "blocks": editable,
     }
     return render_template(
         "admin_edit.html", post=post, editor=editor, accent_hex=ACCENTS[accent]["hex"],
@@ -478,6 +624,7 @@ def admin_delete_post(post_id):
     db = get_db()
     # ON DELETE CASCADE ya borra los bloques, pero lo hacemos explícito por
     # si alguna vez se toca la base desde afuera con foreign_keys apagado.
+    db.execute("DELETE FROM comments WHERE post_id = ?", (post_id,))
     db.execute("DELETE FROM blocks WHERE post_id = ?", (post_id,))
     db.execute("DELETE FROM posts WHERE id = ?", (post_id,))
     db.commit()
@@ -556,6 +703,7 @@ def admin_save_post(post_id):
     title = str(payload.get("title") or "").strip() or post["title"]
     eyebrow = str(payload.get("eyebrow") or "").strip()
     dek = str(payload.get("dek") or "").strip()
+    author = str(payload.get("author") or "").strip()[:120]
     accent = payload.get("accent") if payload.get("accent") in ACCENTS else "blue"
 
     blocks = []
@@ -581,8 +729,8 @@ def admin_save_post(post_id):
     if not post["published_at"]:
         slug = unique_slug(db, title, exclude_id=post_id)
     db.execute(
-        "UPDATE posts SET title=?, slug=?, eyebrow=?, dek=?, accent=?, updated_at=? WHERE id=?",
-        (title, slug, eyebrow, dek, accent, now, post_id),
+        "UPDATE posts SET title=?, slug=?, eyebrow=?, dek=?, author=?, accent=?, updated_at=? WHERE id=?",
+        (title, slug, eyebrow, dek, author, accent, now, post_id),
     )
     db.execute("DELETE FROM blocks WHERE post_id = ?", (post_id,))
     for pos, (btype, data) in enumerate(blocks):
@@ -606,6 +754,46 @@ def admin_upload():
         return {"url": save_upload(f)}
     except ValueError as e:
         return {"error": str(e)}, 400
+
+
+# ---------------------------------------------------------------------------
+# Admin — moderación de comentarios
+# ---------------------------------------------------------------------------
+
+@app.route("/admin/comentarios")
+@login_required
+def admin_comments():
+    db = get_db()
+    rows = db.execute(
+        """SELECT c.*, p.title AS post_title, p.slug AS post_slug
+           FROM comments c JOIN posts p ON p.id = c.post_id
+           ORDER BY CASE c.status WHEN 'pending' THEN 0 ELSE 1 END, c.created_at DESC
+           LIMIT 200"""
+    ).fetchall()
+    pending = sum(1 for r in rows if r["status"] == "pending")
+    return render_template("admin_comments.html", comments=rows, pending=pending)
+
+
+@app.route("/admin/comentarios/<int:cid>/aprobar", methods=["POST"])
+@login_required
+def admin_comment_approve(cid):
+    db = get_db()
+    db.execute("UPDATE comments SET status = 'approved' WHERE id = ?", (cid,))
+    db.commit()
+    flash("Comentario aprobado.", "ok")
+    return redirect(safe_next(url_for("admin_comments")))
+
+
+@app.route("/admin/comentarios/<int:cid>/borrar", methods=["POST"])
+@login_required
+def admin_comment_delete(cid):
+    db = get_db()
+    # ON DELETE CASCADE ya borra las respuestas; explícito por las dudas.
+    db.execute("DELETE FROM comments WHERE parent_id = ?", (cid,))
+    db.execute("DELETE FROM comments WHERE id = ?", (cid,))
+    db.commit()
+    flash("Comentario borrado.", "ok")
+    return redirect(safe_next(url_for("admin_comments")))
 
 
 # ---------------------------------------------------------------------------

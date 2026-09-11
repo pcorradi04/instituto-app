@@ -9,6 +9,7 @@
 <div class="hero">
   <div class="eyebrow">{{ post['eyebrow'] or 'Instituto de Energía' }}</div>
   <h1>{{ post['title'] }}</h1>
+  <div class="byline">Por {{ post['author'] or 'Instituto de Energía' }}{% if post['published_at'] %} · {{ post['published_at'] | fecha_es }}{% endif %}</div>
   {% if post['dek'] %}<p class="lede">{{ post['dek'] }}</p>{% endif %}
   {% if post['status'] == 'draft' %}<p class="lede" style="color:#A63D2F; font-weight:bold;">[BORRADOR — no visible públicamente]</p>{% endif %}
 </div>
@@ -43,6 +44,74 @@
     {% endif %}
   {% endfor %}
 
+  <div class="share">
+    <span>Compartir:</span>
+    <a data-net="x" href="#" target="_blank" rel="noopener">X</a>
+    <a data-net="linkedin" href="#" target="_blank" rel="noopener">LinkedIn</a>
+    <a data-net="whatsapp" href="#" target="_blank" rel="noopener">WhatsApp</a>
+    <button type="button" class="copy-link">Copiar link</button>
+  </div>
+
+</section>
+
+{% macro comment(c, is_reply=False) %}
+<div class="comment{{ ' reply' if is_reply }}{{ ' pending' if c.status == 'pending' }}{{ ' staff' if c.is_staff }}" id="c{{ c.id }}">
+  <div class="comment-head">
+    <b>{{ c.name }}</b>
+    {% if c.is_staff %}<span class="badge">Equipo del Instituto</span>{% endif %}
+    <span class="date">{{ c.created_at | fecha_es(true) }}</span>
+    {% if c.status == 'pending' %}<span class="badge pending">Pendiente de aprobación</span>{% endif %}
+  </div>
+  <div class="comment-body">{{ c.html | safe }}</div>
+  <div class="comment-actions">
+    {% if not is_reply %}<button type="button" class="linklike reply-btn" data-parent="{{ c.id }}" data-name="{{ c.name }}">Responder</button>{% endif %}
+    {% if session.get('is_admin') %}
+      {% if c.status == 'pending' %}
+      <form method="post" action="{{ url_for('admin_comment_approve', cid=c.id) }}" class="inline">
+        <input type="hidden" name="next" value="{{ request.path }}#c{{ c.id }}"><button type="submit" class="linklike">Aprobar</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('admin_comment_delete', cid=c.id) }}" class="inline" onsubmit="return confirm('¿Borrar este comentario?');">
+        <input type="hidden" name="next" value="{{ request.path }}#comentarios"><button type="submit" class="linklike danger">Borrar</button>
+      </form>
+    {% endif %}
+  </div>
+  {% for r in c.replies %}{{ comment(r, True) }}{% endfor %}
+</div>
+{% endmacro %}
+
+<section class="comments" id="comentarios">
+  <h2>Comentarios <span class="count">{{ n_comments }}</span></h2>
+  <p class="comments-intro">Este espacio es para discutir lo que plantea el post. Los comentarios se publican después de que el equipo del Instituto los revisa.</p>
+
+  {% with messages = get_flashed_messages(with_categories=true, category_filter=['comment-ok', 'comment-error']) %}
+    {% for category, msg in messages %}
+      <div class="flash {{ 'error' if category == 'comment-error' else 'ok' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  {% if post['status'] != 'published' %}
+    <p class="comments-intro">Los comentarios se habilitan cuando el post se publica.</p>
+  {% else %}
+    {% for c in comments %}{{ comment(c) }}{% endfor %}
+    {% if not comments %}<p class="comments-intro">Todavía no hay comentarios. Sé la primera persona en comentar.</p>{% endif %}
+
+    <form method="post" action="{{ url_for('post_comment', slug=post['slug']) }}" class="comment-form" id="comment-form">
+      <input type="hidden" name="parent_id" id="parent_id" value="">
+      <div class="replying" id="replying" hidden>Respondiendo a <b id="replying-name"></b> · <button type="button" class="linklike" id="cancel-reply">cancelar</button></div>
+      {% if session.get('is_admin') %}
+        <p class="comments-intro">Estás logueado: lo que escribas se publica al instante, firmado como <b>{{ staff_name }}</b>.</p>
+      {% else %}
+        <div class="row">
+          <label>Nombre<input type="text" name="name" required maxlength="60" value="{{ commenter_name }}"></label>
+          <label>Mail (opcional, no se publica)<input type="email" name="email" maxlength="120"></label>
+        </div>
+      {% endif %}
+      <label>Comentario<textarea name="body" required minlength="5" maxlength="3000" rows="4"></textarea></label>
+      <div class="hp" aria-hidden="true"><label>No completar este campo<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+      <button type="submit" class="btn-comment">{{ 'Publicar respuesta' if session.get('is_admin') else 'Enviar comentario' }}</button>
+    </form>
+  {% endif %}
 </section>
 </main>
 
@@ -67,5 +136,33 @@ window.addEventListener('resize', () => {
     if (el && spec && spec.kind !== 'canvas') renderPostChart(el, def, ACCENT_HEX, { animate: false });
   }), 200);
 });
+
+// Compartir: links armados con la dirección real de esta página (sin rastreo).
+(function () {
+  const url = location.href.split('#')[0];
+  const u = encodeURIComponent(url), t = encodeURIComponent(document.title);
+  const nets = { x: 'https://twitter.com/intent/tweet?url=' + u + '&text=' + t,
+                 linkedin: 'https://www.linkedin.com/sharing/share-offsite/?url=' + u,
+                 whatsapp: 'https://wa.me/?text=' + t + '%20' + u };
+  document.querySelectorAll('.share a[data-net]').forEach(a => { a.href = nets[a.dataset.net]; });
+  const copy = document.querySelector('.share .copy-link');
+  if (copy) copy.addEventListener('click', () => {
+    navigator.clipboard.writeText(url).then(() => { copy.textContent = 'Link copiado'; setTimeout(() => { copy.textContent = 'Copiar link'; }, 2000); });
+  });
+  // "Responder": el mismo formulario, colgado del comentario elegido.
+  const form = document.getElementById('comment-form');
+  if (!form) return;
+  document.querySelectorAll('.reply-btn').forEach(b => b.addEventListener('click', () => {
+    form.parent_id.value = b.dataset.parent;
+    document.getElementById('replying-name').textContent = b.dataset.name;
+    document.getElementById('replying').hidden = false;
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    form.body.focus();
+  }));
+  document.getElementById('cancel-reply').addEventListener('click', () => {
+    form.parent_id.value = '';
+    document.getElementById('replying').hidden = true;
+  });
+})();
 </script>
 {% endblock %}

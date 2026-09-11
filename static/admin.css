@@ -30,6 +30,13 @@ body.admin{font-family:'Courier New',monospace; background:#EFEDE7;}
 .flash{padding:10px 14px; margin-bottom:16px; font-size:13px;}
 .flash.ok{background:#DCEFE0; color:#1B6B33;}
 .flash.error{background:#F3E7E4; color:#A63D2F;}
+.pending-badge{display:inline-block; background:#FFF3CD; color:#7A5A00; border:1px solid #E8C24A; padding:6px 12px; font-size:12.5px; text-decoration:none; margin-bottom:16px;}
+.pending-badge:hover{background:#FFEBA8;}
+.comment-card.pending{border-left:4px solid #E8C24A;}
+.comment-card-head{font-size:13px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px;}
+.comment-card-post{font-size:12px; color:var(--ink-soft); margin-bottom:8px;}
+.comment-card-body{font-family:Georgia,serif; font-size:14.5px; white-space:pre-wrap; margin-bottom:10px; max-width:80ch;}
+.comment-card-actions{display:flex; gap:8px; flex-wrap:wrap;}
 .login-box{max-width:340px; margin:80px auto; background:#fff; border:1px solid var(--line); padding:28px;}
 .login-box h1{font-family:Georgia,serif; font-size:20px; margin-top:0;}
 

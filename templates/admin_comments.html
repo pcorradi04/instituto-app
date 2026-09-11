@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comentarios — Panel admin</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+<body class="admin">
+<div class="admin-bar">
+  <div><b>Instituto de Energía</b> — Comentarios</div>
+  <div><a href="{{ url_for('admin_dashboard') }}">← Posts</a><a href="{{ url_for('index') }}" target="_blank">Ver sitio ↗</a><a href="{{ url_for('admin_logout') }}">Cerrar sesión</a></div>
+</div>
+<div class="admin-wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div class="flash {{ 'error' if category=='error' else 'ok' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <h1>Comentarios {% if pending %}<span class="status-pill draft">{{ pending }} pendiente{{ 's' if pending != 1 }}</span>{% endif %}</h1>
+  <p class="hint" style="margin-bottom:18px;">Los pendientes aparecen primero. "Ver en el post" abre el post con el comentario marcado: desde ahí también podés aprobarlo, borrarlo o responderle con la firma del Instituto.</p>
+
+  {% for c in comments %}
+  <div class="admin-card comment-card {{ c.status }}">
+    <div class="comment-card-head">
+      <span class="status-pill {{ 'published' if c.status == 'approved' else 'draft' }}">{{ 'Aprobado' if c.status == 'approved' else 'Pendiente' }}</span>
+      {% if c.is_staff %}<span class="status-pill published">Equipo</span>{% endif %}
+      <b>{{ c.name }}</b>{% if c.email %} <span class="mono" style="color:var(--ink-soft);">&lt;{{ c.email }}&gt;</span>{% endif %}
+      · {{ c.created_at | fecha_es(true) }}
+      {% if c.parent_id %}· <span style="color:var(--ink-soft);">respuesta</span>{% endif %}
+    </div>
+    <div class="comment-card-post">En: <a href="{{ url_for('show_post', slug=c.post_slug) }}#c{{ c.id }}" target="_blank">{{ c.post_title }}</a></div>
+    <div class="comment-card-body">{{ c.body }}</div>
+    <div class="comment-card-actions">
+      {% if c.status == 'pending' %}
+      <form method="post" action="{{ url_for('admin_comment_approve', cid=c.id) }}" style="display:inline;">
+        <button class="btn small" type="submit">Aprobar</button>
+      </form>
+      {% endif %}
+      <a class="btn small secondary" href="{{ url_for('show_post', slug=c.post_slug) }}#c{{ c.id }}" target="_blank">Ver en el post / responder</a>
+      <form method="post" action="{{ url_for('admin_comment_delete', cid=c.id) }}" style="display:inline;" onsubmit="return confirm('¿Borrar este comentario? Si tiene respuestas, se borran también.');">
+        <button class="btn small danger" type="submit">Borrar</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div class="admin-card">Todavía no hay comentarios en ningún post.</div>
+  {% endfor %}
+</div>
+</body>
+</html>

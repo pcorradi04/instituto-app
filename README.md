@@ -99,6 +99,33 @@ python test_app.py
    que solo ves vos, logueado ("Ver post ↗" te lo muestra tal cual va a
    quedar).
 
+## 2b. Comentarios de lectores
+
+Cada post publicado tiene al pie una sección de comentarios. Cualquier
+lector puede comentar con nombre y, opcionalmente, mail (no se publica);
+no hace falta registrarse.
+
+- **Moderación previa**: los comentarios nuevos quedan pendientes y no se
+  ven hasta que alguien del equipo los aprueba. Al entrar al panel aparece
+  un aviso amarillo con la cantidad de pendientes; el link "Comentarios"
+  de arriba lista todos.
+- **Aprobar, borrar y responder desde el post mismo**: si estás logueado y
+  abrís un post, ves los pendientes marcados en amarillo con botones
+  "Aprobar" y "Borrar", y lo que escribas en el formulario se publica al
+  instante firmado como "Instituto de Energía" (destacado en el hilo).
+- **Respuestas de un solo nivel**: se puede responder a un comentario, y
+  las respuestas quedan debajo, indentadas. Responder a una respuesta la
+  cuelga del comentario original, así el hilo no se vuelve un árbol.
+- **Anti-spam sin molestar al lector**: un campo invisible que solo llenan
+  los robots (si viene lleno, se descarta en silencio) y un máximo de 3
+  comentarios cada 10 minutos por dirección de internet.
+- Borrar un comentario borra sus respuestas. Borrar un post borra sus
+  comentarios.
+
+Además, cada post muestra autor y fecha debajo del título (el autor se
+carga en el editor, en la línea "Por ...") y botones para compartir en X,
+LinkedIn y WhatsApp o copiar el link. Son links simples, sin rastreo.
+
 ## 3. Estructura del proyecto
 
 ```
@@ -193,6 +220,9 @@ de todo este trabajo.
 - Usuarios con nombre y permisos distintos (hoy es una clave compartida).
 - Búsqueda dentro del texto completo de cada post (hoy busca en
   título/copete/etiqueta desde la portada).
+- Aviso por mail cuando llega un comentario (hoy: el aviso está en el
+  panel). Feed RSS, etiquetas clickeables, paginación de la portada y
+  suscripción por mail: son la "fase 2" del blog.
 
 Ninguna de estas es difícil de sumar sobre esta base — las dejé afuera para
 que la primera versión sea chica, funcione, y la puedan probar ya.

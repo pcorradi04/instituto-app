@@ -21,7 +21,7 @@
   </div>
 </div>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
+{% with messages = get_flashed_messages(with_categories=true, category_filter=['ok', 'error']) %}
   {% if messages %}
     <div style="max-width:1240px;margin:16px auto 0;padding:0 4vw;">
     {% for category, msg in messages %}

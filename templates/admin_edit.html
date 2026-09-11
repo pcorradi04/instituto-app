@@ -46,6 +46,7 @@
 <div class="hero">
   <div class="eyebrow"><input class="ed" id="fEyebrow" maxlength="80" placeholder="Etiqueta / categoría (ej: Comercio Exterior)"></div>
   <h1><textarea class="ed" id="fTitle" rows="1" placeholder="Título del post"></textarea></h1>
+  <div class="byline">Por <input class="ed inline" id="fAuthor" maxlength="120" placeholder="Instituto de Energía (o el nombre de quien firma)"></div>
   <p class="lede"><textarea class="ed" id="fDek" rows="1" placeholder="Copete / resumen: dos o tres líneas que cuenten de qué va el post (opcional)."></textarea></p>
 </div>
 
@@ -88,7 +89,7 @@ const UPLOAD_URL = "{{ url_for('admin_upload') }}";
   // ---- estado: lo que se manda al servidor al guardar --------------------
   const state = {
     title: INITIAL.title || '', eyebrow: INITIAL.eyebrow || '', dek: INITIAL.dek || '',
-    accent: INITIAL.accent || 'blue', blocks: [],
+    author: INITIAL.author || '', accent: INITIAL.accent || 'blue', blocks: [],
   };
   let seq = 0;
   const uid = () => 'b' + (++seq);
@@ -121,6 +122,7 @@ const UPLOAD_URL = "{{ url_for('admin_upload') }}";
   bind($('#fEyebrow'), state, 'eyebrow');
   bind($('#fTitle'), state, 'title', () => { document.title = 'Editando: ' + (state.title || 'Sin título'); });
   bind($('#fDek'), state, 'dek');
+  bind($('#fAuthor'), state, 'author');
   noEnter($('#fTitle'));
 
   // ---- color de acento ----------------------------------------------------
@@ -401,7 +403,7 @@ const UPLOAD_URL = "{{ url_for('admin_upload') }}";
     if (saving) return false;
     saving = true;
     saveState.textContent = 'Guardando…'; saveState.className = 'save-state';
-    const payload = { title: state.title, eyebrow: state.eyebrow, dek: state.dek, accent: state.accent,
+    const payload = { title: state.title, eyebrow: state.eyebrow, dek: state.dek, author: state.author, accent: state.accent,
                       blocks: state.blocks.map(b => ({ type: b.type, data: b.data })) };
     try {
       const r = await fetch(SAVE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });

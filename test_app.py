@@ -103,14 +103,14 @@ BLOCKS = [
     {"type": "image", "data": {"url": "https://example.com/a.png", "caption": "Epígrafe"}},
     {"type": "heading", "data": {"tag": "Sección dos", "title": "Segundo título"}},
 ]
-GENERAL = {"title": "Título editado", "eyebrow": "Prueba", "dek": "Copete", "accent": "navy"}
+GENERAL = {"title": "Título editado", "eyebrow": "Prueba", "dek": "Copete", "author": "Autor de prueba", "accent": "navy"}
 r = save({**GENERAL, "blocks": BLOCKS})
 j = r.get_json() or {}
 ok(r.status_code == 200 and j.get("ok") and j.get("slug") == "titulo-editado" and j.get("post_url") == "/post/titulo-editado",
    "guardar: responde ok; borrador nunca publicado -> la URL sigue al título")
 slug = j.get("slug", slug)
-ok(tuple(db_row("SELECT title, eyebrow, dek, accent FROM posts WHERE id=?", pid)) == ("Título editado", "Prueba", "Copete", "navy"),
-   "datos generales guardados")
+ok(tuple(db_row("SELECT title, eyebrow, dek, author, accent FROM posts WHERE id=?", pid)) == ("Título editado", "Prueba", "Copete", "Autor de prueba", "navy"),
+   "datos generales guardados (incluido el autor)")
 bl = blocks()
 ok([b["type"] for b in bl] == ["heading", "paragraph", "callout", "chart", "image", "heading"], "6 bloques en orden")
 ok(bl[3]["data"]["labels"] == ["Ene", "Feb", "Mar"] and bl[3]["data"]["series"] == [[1.0, 3.0, None], [2.5, None, 4.0]]
@@ -209,8 +209,53 @@ ok(db_row("SELECT slug FROM posts WHERE id=?", pid)["slug"] == "titulo-editado",
 ok("Título cambiado" in text(anon.get("/?q=cambiado")), "búsqueda por título")
 ok("No encontramos" in text(anon.get("/?q=zzzz")), "búsqueda sin resultados")
 ok('style="--accent:#1F4E5F"' in text(anon.get("/")), "la portada pinta cada post con su acento")
+# --- comentarios ----------------------------------------------------------
+curl = "/post/" + slug + "/comentar"
+html = text(anon.get("/post/" + slug))
+ok('id="comentarios"' in html and 'name="website"' in html and "Compartir:" in html and "Por Autor de prueba" in html
+   and " de 2026" in html, "post publicado: sección de comentarios, campo trampa, compartir, firma de autor y fecha en español")
+r = anon.post(curl, data={"name": "Ana", "body": "Muy buen análisis, ¿tienen los datos por cuenca?", "website": ""}, follow_redirects=True)
+ok("se va a publicar cuando lo revise" in text(r), "comentario enviado: mensaje de gracias en la sección de comentarios")
+ok(db_row("SELECT status, is_staff FROM comments WHERE name='Ana'")["status"] == "pending", "queda pendiente de aprobación")
+ok("Muy buen análisis" not in text(app.test_client().get("/post/" + slug)), "pendiente: no se ve para el público")
+ahtml = text(c.get("/post/" + slug))
+ok("Muy buen análisis" in ahtml and "Pendiente de aprobación" in ahtml and "Aprobar" in ahtml, "pendiente: el admin lo ve marcado en el post, con botón Aprobar")
+anon.post(curl, data={"name": "Bot", "body": "compra esto ahora mismo", "website": "http://spam"})
+ok(db_row("SELECT COUNT(*) AS c FROM comments WHERE name='Bot'")["c"] == 0, "campo trampa lleno: se descarta en silencio")
+r = anon.post(curl, data={"name": "A", "body": "hola"}, follow_redirects=True)
+ok("muy corto" in text(r) and db_row("SELECT COUNT(*) AS c FROM comments")["c"] == 1, "nombre o comentario muy cortos: rechazado con aviso")
+ok(anon.post("/post/no-existe/comentar", data={"name": "Ana", "body": "hola hola"}).status_code == 404, "comentar en post inexistente -> 404")
+dhtml = text(c.get("/admin/"))
+ok("1 comentario pendiente" in dhtml and "Comentarios (1)" in dhtml, "dashboard: aviso de comentarios pendientes")
+lhtml = text(c.get("/admin/comentarios"))
+ok("Ana" in lhtml and "Aprobar" in lhtml and "Título cambiado" in lhtml, "lista de comentarios en el panel, con el post al que pertenecen")
+ok(anon.get("/admin/comentarios").status_code == 302, "lista de comentarios requiere login")
+cid = db_row("SELECT id FROM comments WHERE name='Ana'")["id"]
+r = c.post(f"/admin/comentarios/{cid}/aprobar", data={"next": f"/post/{slug}#c{cid}"})
+ok(r.status_code == 302 and r.headers["Location"].endswith(f"/post/{slug}#c{cid}")
+   and db_row("SELECT status FROM comments WHERE id=?", cid)["status"] == "approved", "aprobar desde el post vuelve al post y publica el comentario")
+ok("Muy buen análisis" in text(app.test_client().get("/post/" + slug)), "aprobado: se ve para el público")
+ok("1 comentario" in text(anon.get("/")), "la portada muestra la cantidad de comentarios del post")
+r = c.post(curl, data={"body": "Sí, los publicamos la semana que viene.", "parent_id": str(cid)}, follow_redirects=True)
+staff = db_row("SELECT * FROM comments WHERE is_staff=1")
+ok(staff is not None and staff["status"] == "approved" and staff["parent_id"] == cid and staff["name"] == appmod.STAFF_NAME,
+   "respuesta del equipo (logueado): aprobada al instante, firmada y colgada del comentario")
+phtml = text(app.test_client().get("/post/" + slug))
+ok("Equipo del Instituto" in phtml and phtml.index("Muy buen análisis") < phtml.index("la semana que viene"),
+   "la respuesta se ve debajo del comentario original")
+anon.post(curl, data={"name": "Ana", "body": "Gracias, quedo atenta.", "parent_id": str(staff["id"])})
+ok(db_row("SELECT parent_id FROM comments WHERE body LIKE 'Gracias, quedo%'")["parent_id"] == cid,
+   "responder a una respuesta cuelga del comentario original (un solo nivel)")
+anon.post(curl, data={"name": "Ana", "body": "tercero tercero tercero"})
+r = anon.post(curl, data={"name": "Ana", "body": "cuarto cuarto cuarto"}, follow_redirects=True)
+ok("Esperá unos minutos" in text(r) and db_row("SELECT COUNT(*) AS c FROM comments WHERE body LIKE 'cuarto%'")["c"] == 0,
+   "más de 3 comentarios en 10 minutos desde la misma IP: rechazado")
+c.post(f"/admin/comentarios/{cid}/borrar", data={"next": "/admin/comentarios"})
+ok(db_row("SELECT COUNT(*) AS c FROM comments WHERE id=? OR parent_id=?", cid, cid)["c"] == 0, "borrar un comentario borra también sus respuestas")
+
 r = c.post(f"/admin/posts/{pid}/publish", data={"next": "https://evil.com"})
 ok(r.headers["Location"].endswith("/admin/"), "despublicar con next externo -> dashboard")
+ok(anon.post(curl, data={"name": "Ana", "body": "hola hola hola"}).status_code == 404, "no se puede comentar un post despublicado")
 p2 = db_row("SELECT status, published_at FROM posts WHERE id=?", pid)
 ok(p2["status"] == "draft" and p2["published_at"], "despublicado conserva la fecha original")
 
@@ -220,6 +265,7 @@ pid2 = int(re.search(r"/(\d+)/edit", r.headers["Location"]).group(1))
 ok(db_row("SELECT slug FROM posts WHERE id=?", pid2)["slug"] == "titulo-editado-2", "slug duplicado -> sufijo -2")
 c.post(f"/admin/posts/{pid}/delete")
 ok(db_row("SELECT count(*) c FROM blocks WHERE post_id=?", pid)["c"] == 0, "borrar post borra sus bloques")
+ok(db_row("SELECT count(*) c FROM comments WHERE post_id=?", pid)["c"] == 0, "borrar post borra sus comentarios")
 ok(db_row("SELECT count(*) c FROM posts WHERE id=?", pid)["c"] == 0, "post borrado")
 ok(c.get("/admin/posts/9999/edit").status_code == 404, "404 post inexistente")
 ok(anon.get("/post/no-existe").status_code == 404, "404 slug inexistente")

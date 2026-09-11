@@ -361,6 +361,35 @@ entre turnos. Estado al cierre de esa ronda:
   (`.chart-wrap.auto`); se redibujan al cambiar el ancho de la ventana.
   El Sankey se generalizó a varios orígenes y varios destinos (la galería
   tenía uno solo).
+- **Deploy hecho (10-11 sep 2026)**: el sitio está online en
+  https://institutoenergia.pythonanywhere.com (cuenta gratis de
+  PythonAnywhere, usuario `institutoenergia`, virtualenv `venv-instituto`,
+  Python 3.12, código clonado en `/home/institutoenergia/instituto-app`).
+  Repo público en https://github.com/pcorradi04/instituto-app. Para
+  actualizar: push desde acá, y en una consola Bash de PythonAnywhere
+  `cd ~/instituto-app && git pull`, después "Reload" en la pestaña Web.
+  El `.env` de producción ya tiene ADMIN_PASSWORD, SECRET_KEY y
+  SECURE_COOKIES=1 (no está en el repo).
+- **Comentarios (11 sep 2026)**. El profesor (Luciano) pidió, por audio,
+  que el blog "permita la interacción con el público": comentarios debajo
+  de cada post, con aprobación previa ("para que no se vaya de las manos",
+  aflojar después), sin columna lateral ni lista de últimos comentarios
+  (no le interesa), diseño como está ("un 10"). Implementado: tabla
+  `comments` (post_id, parent_id, name, email, body, status
+  pending/approved, is_staff, ip, created_at); ruta pública
+  `POST /post/<slug>/comentar`; el admin logueado ve los pendientes en el
+  post y aprueba/borra/responde ahí mismo (su respuesta sale aprobada y
+  firmada `STAFF_NAME`); `/admin/comentarios` lista todo; el dashboard
+  muestra el conteo de pendientes. Anti-spam: honeypot `website` +
+  máximo 3 por IP cada 10 min (`COMMENT_LIMIT_PER_10MIN`). Respuestas de
+  un solo nivel. Los flashes de comentarios usan categorías `comment-ok` /
+  `comment-error` y se muestran en la sección de comentarios, no arriba
+  (base.html filtra con `category_filter`). También: firma "Por autor ·
+  fecha" en el post (campo `author`, editable en el editor), fechas en
+  español con `fecha_es` (UTC-3 fijo), botones de compartir armados en JS
+  con `location.href` (sin rastreo). Sin aviso por mail (el plan gratis
+  de PythonAnywhere restringe SMTP; no se probó). Fase 2 pendiente: RSS,
+  etiquetas clickeables, paginación, reacciones, suscripción por mail.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

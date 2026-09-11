@@ -10,7 +10,7 @@
 <body class="admin">
 <div class="admin-bar">
   <div><b>Instituto de Energía</b> — Panel de administración</div>
-  <div><a href="{{ url_for('index') }}" target="_blank">Ver sitio ↗</a><a href="{{ url_for('admin_logout') }}">Cerrar sesión</a></div>
+  <div><a href="{{ url_for('admin_comments') }}">Comentarios{% if pending %} ({{ pending }}){% endif %}</a><a href="{{ url_for('index') }}" target="_blank">Ver sitio ↗</a><a href="{{ url_for('admin_logout') }}">Cerrar sesión</a></div>
 </div>
 <div class="admin-wrap">
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -22,6 +22,10 @@
   {% endwith %}
 
   <h1>Posts</h1>
+
+  {% if pending %}
+  <a class="pending-badge" href="{{ url_for('admin_comments') }}">{{ pending }} comentario{{ 's' if pending != 1 }} pendiente{{ 's' if pending != 1 }} de aprobación →</a>
+  {% endif %}
 
   <div class="admin-card">
     <form method="post" action="{{ url_for('admin_create_post') }}" style="display:flex; gap:10px;">

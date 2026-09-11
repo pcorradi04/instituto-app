@@ -88,7 +88,42 @@ mark.search-hit{background:var(--orange-soft); color:var(--ink); border-radius:1
 mark.search-hit.current{background:var(--orange);}
 .search-count{font-size:11px; color:var(--ink-soft); position:absolute; right:8px; top:50%; transform:translateY(-50%);}
 
+/* ---------- firma, compartir y comentarios ---------- */
+.hero .byline{font-size:13px; color:var(--ink-soft); margin:-8px 0 16px;}
+.share{display:flex; gap:16px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:var(--ink-soft); padding:18px 0 0; margin-top:28px; border-top:1px solid var(--line);}
+.share a, .share button{font:inherit; color:var(--blue); background:none; border:0; padding:0; cursor:pointer; text-decoration:underline;}
+.comments h2{display:flex; align-items:baseline; gap:10px;}
+.comments h2 .count{font-size:15px; font-weight:400; color:var(--ink-soft);}
+.comments-intro{font-size:14px; color:var(--ink-soft); max-width:80ch; margin:0 0 18px;}
+.comment{border-top:1px solid var(--line); padding:16px 0; max-width:90ch;}
+.comment.reply{margin-left:36px; border-top:1px dashed var(--line); padding-left:16px; border-left:3px solid var(--paper-2);}
+.comment.staff{background:var(--paper-2); padding:14px 16px; border-left:3px solid var(--accent, var(--blue)); border-top:0; margin-top:10px;}
+.comment.pending{background:#FFF8E6;}
+.comment-head{font-size:12.5px; color:var(--ink-soft); display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+.comment-head b{color:var(--ink); font-size:14.5px;}
+.badge{font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding:1px 7px; border:1px solid var(--accent, var(--blue)); color:var(--accent, var(--blue)); border-radius:10px;}
+.badge.pending{border-color:#B8860B; color:#8A6508;}
+.comment-body{font-size:15px; max-width:80ch; margin-top:6px;}
+.comment-body p{margin:0 0 8px;}
+.comment-actions{display:flex; gap:14px; font-size:12px; margin-top:2px;}
+.linklike{font:inherit; font-size:12px; color:var(--blue); background:none; border:0; padding:0; cursor:pointer; text-decoration:underline;}
+.linklike.danger{color:var(--rust);}
+form.inline{display:inline;}
+.comment-form{margin-top:28px; padding-top:22px; border-top:2px solid var(--line); max-width:80ch;}
+.comment-form label{display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;}
+.comment-form input[type=text], .comment-form input[type=email], .comment-form textarea{display:block; width:100%; margin-top:4px; padding:9px 11px; border:1px solid var(--line); font:inherit; font-size:15px; background:#fff; color:var(--ink);}
+.comment-form textarea{resize:vertical;}
+.comment-form .row{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+.comment-form .hp{position:absolute; left:-9999px; top:-9999px; width:1px; height:1px; overflow:hidden;}
+.btn-comment{background:var(--accent, var(--blue)); color:#fff; border:0; padding:10px 18px; font:inherit; font-size:14px; cursor:pointer;}
+.replying{font-size:13px; color:var(--ink-soft); margin-bottom:10px;}
+.flash{padding:10px 14px; margin-bottom:16px; font-size:14px;}
+.flash.ok{background:#DCEFE0; color:#1B6B33;}
+.flash.error{background:#F3E7E4; color:#A63D2F;}
+
 @media (max-width:860px){
   .brand-bar{flex-direction:column; padding:14px 4vw; gap:10px;}
   .hero{padding-left:6vw; border-left-width:14px;}
+  .comment-form .row{grid-template-columns:1fr;}
+  .comment.reply{margin-left:12px;}
 }
