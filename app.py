@@ -452,6 +452,7 @@ def chart_editable(data):
         "title": data.get("title", ""), "subtitle": data.get("subtitle", ""),
         "note": data.get("note", ""), "source": data.get("source", ""),
         "color": data.get("color", "orange"),
+        "colors": data.get("colors") or [],
         "series_names": ", ".join(data.get("series_names", [])),
         "table": "\n".join(rows),
         "options": data.get("options") or {},
@@ -824,9 +825,17 @@ def block_data_from_form(block_type, form):
         chart_type = form.get("chart_type", "bar_comparison")
         if chart_type not in CHART_TYPES:
             chart_type = "bar_comparison"
-        color = form.get("color", "orange")
-        if color not in ACCENTS:
+        # Colores: claves de la paleta de static/charts.js (ej. "navy",
+        # "pastel_orange"). "color" es el principal; "colors", uno por serie.
+        # Acá solo se valida la forma; una clave desconocida cae al color por
+        # defecto al dibujar.
+        color = str(form.get("color") or "orange")
+        if not re.fullmatch(r"[a-z_]{1,30}", color):
             color = "orange"
+        raw_colors = form.get("colors")
+        colors = []
+        if isinstance(raw_colors, list):
+            colors = [c if re.fullmatch(r"[a-z_]{1,30}", str(c)) else "" for c in raw_colors[:12]]
         # Opciones propias de cada tipo (título de eje, unidad, etc.): un dict
         # chico de texto. Se aceptan solo claves con pinta de identificador y
         # se descartan las vacías.
@@ -843,6 +852,7 @@ def block_data_from_form(block_type, form):
             "note": form.get("note", "").strip(),
             "source": form.get("source", "").strip(),
             "color": color,
+            "colors": colors,
             "labels": labels,
             "series": series,
             "rows": rows,

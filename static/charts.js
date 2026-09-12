@@ -27,6 +27,32 @@
   const GRID = '#EAE5D8', INK = '#1A1A1A', SOFT = '#5B564C', LINE = '#DFDACD';
   // Colores secundarios, en orden, después del color principal del gráfico.
   const EXTRA = ['#3B0A0A', '#1F4E5F', '#0000CC', '#A63D2F', '#7C6A9C', '#8C7A4A', '#B9B4A6', '#E8C24A'];
+  // Paleta para elegir el color de cada serie en el editor (clave -> color).
+  // Las cuatro primeras son las del sistema de diseño; el resto amplía.
+  const PALETTE = {
+    blue: { hex: '#0000CC', label: 'Azul institucional', group: 'Institucional' },
+    orange: { hex: '#C1622E', label: 'Naranja (petróleo)', group: 'Institucional' },
+    navy: { hex: '#1F4E5F', label: 'Navy (gas)', group: 'Institucional' },
+    maroon: { hex: '#3B0A0A', label: 'Granate oscuro', group: 'Institucional' },
+    rust: { hex: '#A63D2F', label: 'Rojo óxido (alerta)', group: 'Institucional' },
+    gold: { hex: '#E8C24A', label: 'Dorado', group: 'Institucional' },
+    green: { hex: '#4E7D4E', label: 'Verde', group: 'Institucional' },
+    purple: { hex: '#7C6A9C', label: 'Violeta', group: 'Institucional' },
+    olive: { hex: '#8C7A4A', label: 'Oliva', group: 'Institucional' },
+    gray: { hex: '#B9B4A6', label: 'Gris', group: 'Institucional' },
+    pastel_orange: { hex: '#E9B79A', label: 'Pastel naranja', group: 'Pastel' },
+    pastel_navy: { hex: '#9FBCC6', label: 'Pastel navy', group: 'Pastel' },
+    pastel_blue: { hex: '#AAB4EE', label: 'Pastel azul', group: 'Pastel' },
+    pastel_maroon: { hex: '#C9A0A0', label: 'Pastel granate', group: 'Pastel' },
+    pastel_rust: { hex: '#E0B0A8', label: 'Pastel óxido', group: 'Pastel' },
+    pastel_gold: { hex: '#F1DFA0', label: 'Pastel dorado', group: 'Pastel' },
+    pastel_green: { hex: '#B5D0B0', label: 'Pastel verde', group: 'Pastel' },
+    pastel_purple: { hex: '#C8BEDC', label: 'Pastel violeta', group: 'Pastel' },
+    pastel_teal: { hex: '#A8D5D0', label: 'Pastel turquesa', group: 'Pastel' },
+    pastel_gray: { hex: '#D9D4C7', label: 'Pastel gris', group: 'Pastel' },
+  };
+  window.CHART_PALETTE = PALETTE;
+  window.CHART_PALETTE_GROUPS = ['Institucional', 'Pastel'];
   const nf = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
   const fmt = v => (v === null || v === undefined || isNaN(v)) ? '' : nf.format(v);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -151,6 +177,15 @@
   // Los gráficos de Chart.js aceptan un alto a medida (los de SVG/HTML tienen el suyo).
   const OPT_H = { key: 'height', label: 'Alto del gráfico (px)', placeholder: '360' };
   Object.values(SPECS).forEach(s => { if (s.kind === 'canvas') s.options = (s.options || []).concat([OPT_H]); });
+  // Qué colores se eligen en el editor: uno por serie, uno solo, o ninguno.
+  const SERIES_TYPES = ['bar_comparison', 'line', 'bar_line', 'stacked_area', 'bump', 'stacked_bar', 'stacked_bar_100', 'scatter', 'dumbbell'];
+  Object.entries(SPECS).forEach(([k, s]) => { s.colorMode = k === 'gauge' ? 'none' : (SERIES_TYPES.includes(k) ? 'series' : 'single'); });
+  // Cuántas series tiene un gráfico según sus datos (para mostrar un selector de color por serie).
+  window.chartSeriesCount = function (chartType, parsed) {
+    if (chartType === 'scatter') return new Set(parsed.rows.map(r => r[0])).size || 1;
+    if (chartType === 'dumbbell') return 2;
+    return Math.max(1, parsed.series.length);
+  };
   window.CHART_SPECS = SPECS;
   window.CHART_GROUPS = GROUPS;
 
@@ -471,8 +506,15 @@
     if (!def.rows) def.rows = def.labels.map((l, i) => [l].concat(def.series.map(s => s[i])));
     const spec = SPECS[def.chart_type] || SPECS.bar_comparison;
     const fn = R[SPECS[def.chart_type] ? def.chart_type : 'bar_comparison'];
-    const main = accentHex[def.color] || '#C1622E';
-    const P = [main].concat(EXTRA.filter(x => x.toLowerCase() !== main.toLowerCase()));
+    // Colores por serie: los elegidos en el editor (def.colors, claves de la
+    // paleta); donde no haya elección, el color principal y luego los extra.
+    const main = PALETTE[def.color] ? PALETTE[def.color].hex : (accentHex[def.color] || '#C1622E');
+    const defaults = [main].concat(EXTRA.filter(x => x.toLowerCase() !== main.toLowerCase()));
+    const chosen = Array.isArray(def.colors) ? def.colors : [];
+    const P = [];
+    for (let i = 0; i < Math.max(defaults.length, chosen.length); i++) {
+      P.push(chosen[i] && PALETTE[chosen[i]] ? PALETTE[chosen[i]].hex : (defaults[i] || EXTRA[i % EXTRA.length]));
+    }
     if (spec.kind === 'canvas') {
       if (typeof Chart === 'undefined') return null;
       Chart.defaults.font.family = "Georgia, 'Times New Roman', serif";

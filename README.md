@@ -72,8 +72,10 @@ python test_app.py
    - **Destacado**: un recuadro de color (naranja / navy / granate) para un
      dato clave o una advertencia.
    - **Gráfico**: elegís el tipo (hay 20, agrupados: comparación, evolución
-     en el tiempo, composición, distribución e indicadores), el color, y
-     cargás los datos como texto simple, una fila por línea:
+     en el tiempo, composición, distribución e indicadores), el color de
+     cada serie (paleta de 20: 10 institucionales y 10 pastel; aparece un
+     selector por serie según las columnas que cargues), y los datos como
+     texto simple, una fila por línea:
      ```
      Mayo 2026 | 959.1 | 1172
      Junio 2026 | 401.3 | 918

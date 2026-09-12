@@ -168,9 +168,9 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
   function tools(b, extra) {
     const t = el(`<div class="blk-tools"><span class="lbl">${LABEL[b.type]}</span></div>`);
     if (extra) t.appendChild(extra);
-    const up = el('<button type="button" title="Subir">↑</button>');
-    const down = el('<button type="button" title="Bajar">↓</button>');
-    const del = el('<button type="button" class="del" title="Borrar bloque">✕</button>');
+    const up = el('<button type="button" title="Mover este bloque un lugar hacia arriba">↑ subir</button>');
+    const down = el('<button type="button" title="Mover este bloque un lugar hacia abajo">↓ bajar</button>');
+    const del = el('<button type="button" class="del" title="Borrar bloque">✕ borrar</button>');
     up.addEventListener('click', () => move(b, -1));
     down.addEventListener('click', () => move(b, +1));
     del.addEventListener('click', () => {
@@ -372,16 +372,16 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
   function chartDataPanel(d, redraw) {
     if (!d.options || typeof d.options !== 'object') d.options = {};
     if (!CHART_SPECS[d.chart_type]) d.chart_type = 'bar_comparison';
-    const colorOpts = Object.entries(ACCENTS).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
     const panel = el(`<div class="chart-data">
-      <div class="row"><label>Tipo</label><select class="ctype"></select><label>Color</label><select class="ccolor">${colorOpts}</select></div>
+      <div class="row"><label>Tipo</label><select class="ctype"></select></div>
+      <div class="row ccolors"></div>
       <div class="row cnames-row"><label class="cnames-label"></label><input type="text" class="cnames"></div>
       <div class="row copts"></div>
       <div class="ccols"></div>
       <textarea class="ctable"></textarea>
       <div class="hint chint"></div>
     </div>`);
-    const sel = panel.querySelector('.ctype'), selColor = panel.querySelector('.ccolor');
+    const sel = panel.querySelector('.ctype');
     CHART_GROUPS.forEach(g => {
       const og = document.createElement('optgroup'); og.label = g;
       Object.entries(CHART_SPECS).forEach(([k, s]) => {
@@ -391,10 +391,45 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
       sel.appendChild(og);
     });
     sel.value = d.chart_type;
-    selColor.value = d.color || 'orange';
     const inNames = panel.querySelector('.cnames'), taTable = panel.querySelector('.ctable'), optsRow = panel.querySelector('.copts');
-    bind(inNames, d, 'series_names', redraw);
-    bind(taTable, d, 'table', redraw);
+    const onData = () => { buildColors(); redraw(); };
+    bind(inNames, d, 'series_names', onData);
+    bind(taTable, d, 'table', onData);
+    // Un selector de color por serie (tantos como columnas de datos haya),
+    // o uno solo para los tipos que usan un color principal.
+    function colorSelect(value) {
+      const s = document.createElement('select'); s.className = 'ccolor';
+      CHART_PALETTE_GROUPS.forEach(g => {
+        const og = document.createElement('optgroup'); og.label = g;
+        Object.entries(CHART_PALETTE).forEach(([k, c]) => { if (c.group !== g) return; const o = document.createElement('option'); o.value = k; o.textContent = c.label; og.appendChild(o); });
+        s.appendChild(og);
+      });
+      s.value = CHART_PALETTE[value] ? value : 'orange';
+      return s;
+    }
+    const DEFAULT_COLORS = ['orange', 'maroon', 'navy', 'blue', 'rust', 'purple', 'olive', 'gray'];
+    function buildColors() {
+      const spec = CHART_SPECS[d.chart_type];
+      const row = panel.querySelector('.ccolors');
+      row.innerHTML = '';
+      row.hidden = spec.colorMode === 'none';
+      if (row.hidden) return;
+      if (!Array.isArray(d.colors)) d.colors = [];
+      const n = spec.colorMode === 'series' ? chartSeriesCount(d.chart_type, parseChartTable(d.table)) : 1;
+      const names = String(d.series_names || '').split(',').map(s => s.trim());
+      const lab = document.createElement('label'); lab.textContent = n > 1 ? 'Colores' : 'Color'; row.appendChild(lab);
+      for (let i = 0; i < n; i++) {
+        if (!CHART_PALETTE[d.colors[i]]) d.colors[i] = i === 0 ? (CHART_PALETTE[d.color] ? d.color : 'orange') : DEFAULT_COLORS[i % DEFAULT_COLORS.length];
+        const item = el('<span class="cswatch"><small></small><span class="dot"></span></span>');
+        item.querySelector('small').textContent = n > 1 ? (names[i] || ('Serie ' + (i + 1))) : '';
+        const dot = item.querySelector('.dot'); dot.style.background = CHART_PALETTE[d.colors[i]].hex;
+        const s = colorSelect(d.colors[i]);
+        s.addEventListener('change', () => { d.colors[i] = s.value; if (i === 0) d.color = s.value; dot.style.background = CHART_PALETTE[s.value].hex; dirty(); redraw(); });
+        item.appendChild(s);
+        row.appendChild(item);
+      }
+      d.color = d.colors[0];
+    }
     function buildPanel() {
       const spec = CHART_SPECS[d.chart_type];
       panel.querySelector('.cnames-row').hidden = !spec.names;
@@ -413,9 +448,9 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
       taTable.placeholder = spec.placeholder;
       panel.querySelector('.chint').textContent = spec.hint + ' Una fila por línea, columnas separadas con "|"; si falta un dato, dejá el valor vacío.';
     }
-    sel.addEventListener('change', () => { d.chart_type = sel.value; dirty(); buildPanel(); redraw(); });
-    selColor.addEventListener('change', () => { d.color = selColor.value; dirty(); redraw(); });
+    sel.addEventListener('change', () => { d.chart_type = sel.value; dirty(); buildPanel(); buildColors(); redraw(); });
     buildPanel();
+    buildColors();
     return panel;
   }
 
@@ -434,7 +469,7 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
     if (!has) return;
     const names = String(d.series_names || '').split(',').map(s => s.trim()).filter(Boolean);
     renderPostChart(wrap, { chart_type: d.chart_type, title: d.title, labels: parsed.labels, series: parsed.series, rows: parsed.rows,
-                            series_names: names, color: d.color, options: d.options }, ACCENT_HEX, { animate: false });
+                            series_names: names, color: d.color, colors: d.colors || [], options: d.options }, ACCENT_HEX, { animate: false });
   }
   function redrawAllCharts() {
     container.querySelectorAll('.blk').forEach(n => { if (n._redraw) n._redraw(); });

@@ -431,6 +431,19 @@ entre turnos. Estado al cierre de esa ronda:
   panel de carga reutilizado por `chart` y por cada panel de `figure`, y
   cada nodo de bloque expone `_redraw()` para redibujar. Los gráficos
   simples también tienen ahora "nota al pie" (`note`).
+- **Colores por serie y paleta ampliada (11 sep 2026)**. Pedro pidió
+  pastel, más variedad y elegir el color de cada serie. `CHART_PALETTE` en
+  charts.js (20 claves: 10 institucionales, 10 pastel); el gráfico guarda
+  `color` (principal) y `colors` (lista de claves, una por serie; "" =
+  por defecto); el server valida solo la forma (`[a-z_]{1,30}`), la clave
+  desconocida cae al color por defecto al dibujar. `CHART_SPECS[t].colorMode`
+  = series | single | none decide cuántos selectores muestra el editor
+  (`chartSeriesCount` cuenta series según los datos). Los destacados y el
+  acento del post siguen con `ACCENTS` (paleta cerrada de 4). Bug
+  arreglado de paso: `[hidden]{display:none !important}` en style.css,
+  porque `.chart-empty` y las filas `.row` (display:flex) ignoraban el
+  atributo `hidden` y el "cuadrado vacío" se veía debajo del gráfico.
+  Las flechas de los bloques ahora dicen "↑ subir / ↓ bajar / ✕ borrar".
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

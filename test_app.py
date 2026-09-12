@@ -150,8 +150,13 @@ r = save({**GENERAL, "blocks": [
                                     {"chart_type": "line", "table": "de más | 1"}]}},
     {"type": "figure", "data": {"title": "Figura vacía", "panels": [{"chart_type": "line", "table": ""}]}},
     {"type": "chart", "data": {"chart_type": "bar_comparison", "title": "Con nota", "note": "Nota al pie del gráfico simple.", "table": "a | 1"}},
+    {"type": "chart", "data": {"chart_type": "line", "title": "Colores", "color": "pastel_orange", "colors": ["pastel_orange", "navy", "Mal!", "gold"],
+                               "table": "a | 1 | 2 | 3 | 4"}},
 ]})
 bl = blocks()
+ok(bl[8]["data"]["color"] == "pastel_orange" and bl[8]["data"]["colors"] == ["pastel_orange", "navy", "", "gold"],
+   "color por serie: se guardan las claves de la paleta, las inválidas quedan vacías (color por defecto)")
+ok(bl[0]["data"]["colors"] == [] and bl[0]["data"]["color"] == "orange", "gráfico sin colores elegidos: lista vacía y principal por defecto")
 fig = bl[5]["data"]
 ok(bl[5]["type"] == "figure" and len(fig["panels"]) == 3 and fig["panels"][0]["labels"] == ["2018", "2019", "2020"]
    and fig["panels"][1]["series_names"] == ["Escalando", "Piloto", "Experimentando"] and fig["panels"][0]["options"] == {"height": "260"}
@@ -165,7 +170,7 @@ ok(bl[2]["data"]["chart_type"] == "bar_comparison", "tipo de gráfico desconocid
 html = text(c.get("/post/" + slug))
 ok('"chart_type": "scatter"' in html and '"rows": [["Crudo", "959.1", "1172"]' in html and '"diagonal": "si"' in html,
    "el post recibe tipo, filas y opciones para charts.js")
-ok(html.count('class="chart-wrap"') == 6 and "sin datos: no se muestra a los lectores" in html
+ok(html.count('class="chart-wrap"') == 7 and "sin datos: no se muestra a los lectores" in html
    and 'src=""' not in html, "gráfico sin datos e imagen sin URL: no dejan cuadros vacíos (el admin ve un aviso)")
 fid = bl[5]["id"]
 ok('class="figure-grid cols-2"' in html and f'id="chart-{fid}-0"' in html and f'id="chart-{fid}-1"' in html and f'id="chart-{fid}-2"' not in html
@@ -174,12 +179,14 @@ ok('class="figure-grid cols-2"' in html and f'id="chart-{fid}-0"' in html and f'
 ok("Figura vacía" not in html.split('id="comentarios"')[0].split("chart-card")[-1] and html.count("Figura sin datos") == 1,
    "figura sin ningún panel con datos: no se muestra (el admin ve el aviso)")
 ok('class="chart-note">Nota al pie del gráfico simple.' in html, "nota al pie en un gráfico simple")
+ok('"colors": ["pastel_orange", "navy", "", "gold"]' in html, "el post recibe los colores por serie para charts.js")
+ok(html.count('class="chart-wrap"') == 7, "7 cajas de gráfico con datos en el post")
 ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
 ok('"panels": [' in ehtml and '"table": "2025 | 38 | 30 | 32\\n2026 | 44 | 34 | 22"' in ehtml and '"note": "\\u00b9En 2017' in ehtml,
    "editor: la figura vuelve con sus paneles como tablas de texto")
 ok('data-mode="copy"' in html and 'data-mode="download"' in html and 'data-filename="grafico"' in html,
    "cada tarjeta de gráfico tiene botones de copiar y descargar PNG")
-ok('class="hero"' not in html and 'class="post-head"' in html and html.count('class="chart-logo"') == 5,
+ok('class="hero"' not in html and 'class="post-head"' in html and html.count('class="chart-logo"') == 6,
    "post: sin la banda beige (encabezado dentro del cuerpo) y logo gris arriba a la derecha de cada gráfico")
 ok('class="hero"' in text(anon.get("/")), "la portada conserva la banda beige")
 ok('class="post-head"' in text(c.get(f"/admin/posts/{pid}/edit")) and 'class="hero"' not in text(c.get(f"/admin/posts/{pid}/edit")),
