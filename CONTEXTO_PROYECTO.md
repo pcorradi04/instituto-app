@@ -419,6 +419,18 @@ entre turnos. Estado al cierre de esa ronda:
   de 120 px dentro de `.chart-head` (título/subtítulo a la izquierda,
   logo a la derecha), parte de la tarjeta y del PNG. Las imágenes ya no
   llevan marca de agua (no son gráficos del Instituto).
+- **Figuras con varios gráficos (11 sep 2026)**. Pedro mostró un exhibit
+  de McKinsey (línea + barras apiladas lado a lado, título común, nota al
+  pie numerada, fuente) y preguntó si se podían unir 2 gráficos. Nuevo
+  tipo de bloque `figure`: `{title, subtitle, note, source, panels:[hasta
+  3 gráficos completos]}`; cada panel se parsea con el mismo código que el
+  bloque `chart` (`block_data_from_form("chart", panel)`), `normalize_json`
+  acepta listas de dicts; en el post se dibujan solo los paneles con datos
+  (`panels_with_data`, ids `chart-<bloque>-<i>`), grilla `.figure-grid
+  .cols-N` que se apila en móvil; en el editor `chartDataPanel()` es el
+  panel de carga reutilizado por `chart` y por cada panel de `figure`, y
+  cada nodo de bloque expone `_redraw()` para redibujar. Los gráficos
+  simples también tienen ahora "nota al pie" (`note`).
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

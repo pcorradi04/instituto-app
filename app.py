@@ -89,7 +89,10 @@ CHART_TYPES = [
     "stacked_bar", "stacked_bar_100", "treemap", "sankey", "shaded_list",
     "boxplot", "bullet", "gauge",
 ]
-BLOCK_TYPES = ["heading", "paragraph", "callout", "chart", "image"]
+# "figure" = varios gráficos uno al lado del otro (hasta 3) con título,
+# subtítulo, nota al pie y fuente en común, al estilo de los "exhibits".
+BLOCK_TYPES = ["heading", "paragraph", "callout", "chart", "figure", "image"]
+MAX_FIGURE_PANELS = 3
 
 # Comentarios de lectores. Se publican después de que alguien del equipo los
 # aprueba desde el panel (decisión del Instituto: empezar moderado y aflojar
@@ -430,6 +433,31 @@ def fmt_num(v):
     return str(int(v)) if float(v).is_integer() else str(v)
 
 
+def chart_editable(data):
+    """Versión editable de un gráfico guardado, para el editor visual: la
+    tabla vuelve a ser texto (si se guardaron las filas crudas se devuelven
+    tal cual, conservando columnas de texto como en el Sankey; los gráficos
+    viejos se reconstruyen desde labels + series) y los nombres de series,
+    una lista separada por comas."""
+    if data.get("rows"):
+        rows = [" | ".join(r) for r in data["rows"]]
+    else:
+        rows = []
+        for i, lab in enumerate(data.get("labels", [])):
+            vals = [fmt_num(s[i]) if i < len(s) and s[i] is not None else ""
+                    for s in data.get("series", [])]
+            rows.append(" | ".join([lab] + vals))
+    return {
+        "chart_type": data.get("chart_type", "bar_comparison"),
+        "title": data.get("title", ""), "subtitle": data.get("subtitle", ""),
+        "note": data.get("note", ""), "source": data.get("source", ""),
+        "color": data.get("color", "orange"),
+        "series_names": ", ".join(data.get("series_names", [])),
+        "table": "\n".join(rows),
+        "options": data.get("options") or {},
+    }
+
+
 def get_post_blocks(db, post_id):
     rows = db.execute(
         "SELECT * FROM blocks WHERE post_id = ? ORDER BY position ASC", (post_id,)
@@ -548,6 +576,13 @@ def show_post(slug):
             b["html"] = render_richtext(b["data"].get("text", ""))
         elif b["type"] == "chart":
             chart_defs.append({"id": f"chart-{b['id']}", **b["data"]})
+        elif b["type"] == "figure":
+            # Solo los paneles con datos se dibujan; el id lleva la posición.
+            b["panels_with_data"] = [
+                (i, p) for i, p in enumerate(b["data"].get("panels", [])) if p.get("rows") or p.get("labels")
+            ]
+            for i, p in b["panels_with_data"]:
+                chart_defs.append({"id": f"chart-{b['id']}-{i}", **p})
 
     accent = post["accent"] if post["accent"] in ACCENTS else "blue"
     is_admin = bool(session.get("is_admin"))
@@ -688,24 +723,12 @@ def admin_edit_post(post_id):
     for b in blocks:
         data = dict(b["data"])
         if b["type"] == "chart":
-            # Si el gráfico se guardó con las filas crudas, se devuelven tal
-            # cual (conservan columnas de texto, ej. Sankey). Los gráficos
-            # viejos, sin "rows", se reconstruyen desde labels + series.
-            if data.get("rows"):
-                rows = [" | ".join(r) for r in data["rows"]]
-            else:
-                rows = []
-                for i, lab in enumerate(data.get("labels", [])):
-                    vals = [fmt_num(s[i]) if i < len(s) and s[i] is not None else ""
-                            for s in data.get("series", [])]
-                    rows.append(" | ".join([lab] + vals))
+            data = chart_editable(data)
+        elif b["type"] == "figure":
             data = {
-                "chart_type": data.get("chart_type", "bar_comparison"),
                 "title": data.get("title", ""), "subtitle": data.get("subtitle", ""),
-                "source": data.get("source", ""), "color": data.get("color", "orange"),
-                "series_names": ", ".join(data.get("series_names", [])),
-                "table": "\n".join(rows),
-                "options": data.get("options") or {},
+                "note": data.get("note", ""), "source": data.get("source", ""),
+                "panels": [chart_editable(p) for p in data.get("panels", [])],
             }
         editable.append({"type": b["type"], "data": data})
     accent = post["accent"] if post["accent"] in ACCENTS else "blue"
@@ -769,6 +792,17 @@ def admin_delete_post(post_id):
 # Admin — guardar el post desde el editor visual
 # ---------------------------------------------------------------------------
 
+def normalize_json(v):
+    """Lo que manda el editor, convertido a lo que espera block_data_from_form:
+    strings (null -> ""), dicts de strings ("options") y listas de dicts
+    ("panels" de una figura)."""
+    if isinstance(v, dict):
+        return {str(k): normalize_json(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [normalize_json(x) for x in v]
+    return "" if v is None else str(v)
+
+
 def block_data_from_form(block_type, form):
     """Limpia y valida los datos de un bloque tal como llegan del editor
     (un dict de strings) y devuelve lo que se guarda en la base. Para el
@@ -806,6 +840,7 @@ def block_data_from_form(block_type, form):
             "chart_type": chart_type,
             "title": form.get("title", "").strip(),
             "subtitle": form.get("subtitle", "").strip(),
+            "note": form.get("note", "").strip(),
             "source": form.get("source", "").strip(),
             "color": color,
             "labels": labels,
@@ -813,6 +848,20 @@ def block_data_from_form(block_type, form):
             "rows": rows,
             "series_names": series_names,
             "options": options,
+        }
+    if block_type == "figure":
+        raw_panels = form.get("panels")
+        panels = []
+        if isinstance(raw_panels, list):
+            for p in raw_panels[:MAX_FIGURE_PANELS]:
+                if isinstance(p, dict):
+                    panels.append(block_data_from_form("chart", p))
+        return {
+            "title": form.get("title", "").strip(),
+            "subtitle": form.get("subtitle", "").strip(),
+            "note": form.get("note", "").strip(),
+            "source": form.get("source", "").strip(),
+            "panels": panels,
         }
     return {}
 
@@ -844,15 +893,7 @@ def admin_save_post(post_id):
         if not isinstance(raw, dict) or raw.get("type") not in BLOCK_TYPES:
             return {"ok": False, "error": "Tipo de bloque inválido."}, 400
         raw_data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
-        # block_data_from_form espera strings (null -> ""); "options" del
-        # gráfico es un dict de strings.
-        data = {}
-        for k, v in raw_data.items():
-            if isinstance(v, dict):
-                data[k] = {str(kk): ("" if vv is None else str(vv)) for kk, vv in v.items()}
-            else:
-                data[k] = "" if v is None else str(v)
-        blocks.append((raw["type"], block_data_from_form(raw["type"], data)))
+        blocks.append((raw["type"], block_data_from_form(raw["type"], normalize_json(raw_data))))
 
     now = datetime.now(timezone.utc).isoformat()
     # Mientras el post nunca se publicó, la URL (slug) sigue al título: así un

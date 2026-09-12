@@ -105,6 +105,12 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .img-url{font-family:'Courier New',monospace; font-size:11.5px; color:var(--ink-soft); margin-top:8px; display:flex; gap:8px; align-items:center;}
 .img-url input{font-family:inherit; font-size:11.5px; flex:1; border:1px solid var(--line); padding:4px 6px; background:#fdfdfb;}
 
+/* figura con varios gráficos */
+.panel-head{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px;}
+.panel-head .panel-title{flex:1; margin:0;}
+.figure-add{margin:12px 0 4px; font-family:'Courier New',monospace; font-size:11.5px; color:var(--ink-soft);}
+.figure-panel .chart-data{font-size:11.5px;}
+
 /* insertar entre bloques */
 .ins{position:relative; height:18px; margin:0 -10px;}
 .ins .ins-line{position:absolute; left:0; right:0; top:8px; border-top:1px dashed transparent;}

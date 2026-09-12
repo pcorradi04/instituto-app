@@ -142,8 +142,20 @@ r = save({**GENERAL, "blocks": [
     {"type": "chart", "data": {"chart_type": "inexistente", "table": "a | 1"}},
     {"type": "chart", "data": {"chart_type": "line", "title": "Vacío", "table": ""}},
     {"type": "image", "data": {"url": "", "caption": "sin imagen"}},
+    {"type": "figure", "data": {"title": "Uso de IA", "subtitle": "% de encuestados", "note": "¹En 2017 la definición era distinta.", "source": "McKinsey",
+                                "panels": [
+                                    {"title": "Al menos 1 función", "chart_type": "line", "series_names": "Organizaciones", "table": "2018 | 47\n2019 | 58\n2020 | 50", "options": {"height": "260"}},
+                                    {"title": "Fase de uso", "chart_type": "stacked_bar_100", "series_names": "Escalando, Piloto, Experimentando", "table": "2025 | 38 | 30 | 32\n2026 | 44 | 34 | 22"},
+                                    {"chart_type": "line", "table": ""},
+                                    {"chart_type": "line", "table": "de más | 1"}]}},
+    {"type": "figure", "data": {"title": "Figura vacía", "panels": [{"chart_type": "line", "table": ""}]}},
+    {"type": "chart", "data": {"chart_type": "bar_comparison", "title": "Con nota", "note": "Nota al pie del gráfico simple.", "table": "a | 1"}},
 ]})
 bl = blocks()
+fig = bl[5]["data"]
+ok(bl[5]["type"] == "figure" and len(fig["panels"]) == 3 and fig["panels"][0]["labels"] == ["2018", "2019", "2020"]
+   and fig["panels"][1]["series_names"] == ["Escalando", "Piloto", "Experimentando"] and fig["panels"][0]["options"] == {"height": "260"}
+   and fig["note"].startswith("¹En 2017"), "figura: hasta 3 paneles, cada uno parseado como un gráfico completo, con nota al pie común")
 ok(r.status_code == 200 and bl[0]["data"]["rows"] == [["Crudo", "959.1", "1172"], ["Gas", "30.4", "52"]],
    "scatter: se guardan las filas crudas (texto) además de labels/series")
 ok(bl[0]["data"]["options"] == {"diagonal": "si"}, "opciones del gráfico: se guardan las válidas, se descartan claves raras y valores vacíos")
@@ -153,11 +165,21 @@ ok(bl[2]["data"]["chart_type"] == "bar_comparison", "tipo de gráfico desconocid
 html = text(c.get("/post/" + slug))
 ok('"chart_type": "scatter"' in html and '"rows": [["Crudo", "959.1", "1172"]' in html and '"diagonal": "si"' in html,
    "el post recibe tipo, filas y opciones para charts.js")
-ok(html.count('class="chart-wrap"') == 3 and "sin datos: no se muestra a los lectores" in html
+ok(html.count('class="chart-wrap"') == 6 and "sin datos: no se muestra a los lectores" in html
    and 'src=""' not in html, "gráfico sin datos e imagen sin URL: no dejan cuadros vacíos (el admin ve un aviso)")
+fid = bl[5]["id"]
+ok('class="figure-grid cols-2"' in html and f'id="chart-{fid}-0"' in html and f'id="chart-{fid}-1"' in html and f'id="chart-{fid}-2"' not in html
+   and "Al menos 1 función" in html and "¹En 2017 la definición" in html and '"id": "chart-' + str(fid) + '-1"' in html,
+   "figura en el post: dos paneles lado a lado (el vacío no cuenta), títulos por panel, nota al pie y definiciones para charts.js")
+ok("Figura vacía" not in html.split('id="comentarios"')[0].split("chart-card")[-1] and html.count("Figura sin datos") == 1,
+   "figura sin ningún panel con datos: no se muestra (el admin ve el aviso)")
+ok('class="chart-note">Nota al pie del gráfico simple.' in html, "nota al pie en un gráfico simple")
+ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
+ok('"panels": [' in ehtml and '"table": "2025 | 38 | 30 | 32\\n2026 | 44 | 34 | 22"' in ehtml and '"note": "\\u00b9En 2017' in ehtml,
+   "editor: la figura vuelve con sus paneles como tablas de texto")
 ok('data-mode="copy"' in html and 'data-mode="download"' in html and 'data-filename="grafico"' in html,
    "cada tarjeta de gráfico tiene botones de copiar y descargar PNG")
-ok('class="hero"' not in html and 'class="post-head"' in html and html.count('class="chart-logo"') == 3,
+ok('class="hero"' not in html and 'class="post-head"' in html and html.count('class="chart-logo"') == 5,
    "post: sin la banda beige (encabezado dentro del cuerpo) y logo gris arriba a la derecha de cada gráfico")
 ok('class="hero"' in text(anon.get("/")), "la portada conserva la banda beige")
 ok('class="post-head"' in text(c.get(f"/admin/posts/{pid}/edit")) and 'class="hero"' not in text(c.get(f"/admin/posts/{pid}/edit")),

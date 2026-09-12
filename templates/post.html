@@ -46,14 +46,39 @@
           <img class="chart-logo" src="{{ url_for('static', filename='img/logo-watermark.png') }}" alt="Instituto de Energía — Universidad Austral">
         </div>
         <div class="chart-wrap" id="chart-{{ b.id }}"></div>
+        {% if b.data.note %}<div class="chart-note">{{ b.data.note }}</div>{% endif %}
         <div class="chart-foot">
           <div class="chart-source">{% if b.data.source %}Fuente: {{ b.data.source }}{% endif %}</div>
           <div class="chart-tools"><button type="button" data-mode="copy" title="Copiar el gráfico como imagen al portapapeles">Copiar PNG</button><button type="button" data-mode="download" title="Descargar el gráfico como imagen">Descargar PNG</button></div>
         </div>
       </div>
 
-    {% elif (b.type == 'chart' or b.type == 'image') and session.get('is_admin') %}
-      <p class="comments-intro" style="font-style:italic;">[{{ 'Gráfico' if b.type == 'chart' else 'Imagen' }} sin datos: no se muestra a los lectores. Cargalo o borralo desde el editor.]</p>
+    {% elif b.type == 'figure' and b.panels_with_data %}
+      <div class="chart-card figure" data-filename="{{ (b.data.title or 'figura') | slug }}">
+        <div class="chart-head">
+          <div class="chart-titles">
+            {% if b.data.title %}<h3>{{ b.data.title }}</h3>{% endif %}
+            {% if b.data.subtitle %}<div class="sub">{{ b.data.subtitle }}</div>{% endif %}
+          </div>
+          <img class="chart-logo" src="{{ url_for('static', filename='img/logo-watermark.png') }}" alt="Instituto de Energía — Universidad Austral">
+        </div>
+        <div class="figure-grid cols-{{ b.panels_with_data | length }}">
+          {% for i, p in b.panels_with_data %}
+          <div class="figure-panel">
+            {% if p.title %}<div class="panel-title">{{ p.title }}</div>{% endif %}
+            <div class="chart-wrap" id="chart-{{ b.id }}-{{ i }}"></div>
+          </div>
+          {% endfor %}
+        </div>
+        {% if b.data.note %}<div class="chart-note">{{ b.data.note }}</div>{% endif %}
+        <div class="chart-foot">
+          <div class="chart-source">{% if b.data.source %}Fuente: {{ b.data.source }}{% endif %}</div>
+          <div class="chart-tools"><button type="button" data-mode="copy" title="Copiar la figura como imagen al portapapeles">Copiar PNG</button><button type="button" data-mode="download" title="Descargar la figura como imagen">Descargar PNG</button></div>
+        </div>
+      </div>
+
+    {% elif b.type in ['chart', 'figure', 'image'] and session.get('is_admin') %}
+      <p class="comments-intro" style="font-style:italic;">[{{ {'chart': 'Gráfico', 'figure': 'Figura', 'image': 'Imagen'}[b.type] }} sin datos: no se muestra a los lectores. Cargalo o borralo desde el editor.]</p>
     {% endif %}
   {% endfor %}
 

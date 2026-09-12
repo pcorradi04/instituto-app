@@ -90,6 +90,11 @@ python test_app.py
      estándar queda chico o grande. En el post, cada gráfico tiene botones
      "Copiar PNG" y "Descargar PNG" para llevárselo como imagen (tarjeta
      completa: título, gráfico, fuente y marca de agua).
+   - **Figura (2 o 3 gráficos juntos)**: como los "exhibits" de las
+     consultoras: varios gráficos uno al lado del otro, cada uno con su
+     tipo, sus datos, su color y su título chico, y en común el título, el
+     subtítulo, la nota al pie y la fuente. Se copia o descarga como un
+     solo PNG. En pantallas chicas los gráficos se apilan.
    - **Imagen**: hacés click en el recuadro y elegís un archivo (PNG, JPG,
      GIF o WebP, hasta 10 MB), o lo arrastrás, o pegás una URL; más un
      epígrafe. Las subidas quedan en `instance/uploads/`.

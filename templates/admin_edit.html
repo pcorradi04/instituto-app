@@ -60,6 +60,7 @@
     <button type="button" data-add="paragraph">Párrafo</button>
     <button type="button" data-add="callout">Destacado</button>
     <button type="button" data-add="chart">Gráfico</button>
+    <button type="button" data-add="figure">Figura (2 o 3 gráficos juntos)</button>
     <button type="button" data-add="image">Imagen</button>
   </div>
 </section>
@@ -142,14 +143,17 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
   applyAccent();
 
   // ---- bloques ------------------------------------------------------------
-  const LABEL = { heading: 'Título de sección', paragraph: 'Párrafo', callout: 'Destacado', chart: 'Gráfico', image: 'Imagen' };
+  const LABEL = { heading: 'Título de sección', paragraph: 'Párrafo', callout: 'Destacado', chart: 'Gráfico', figure: 'Figura (varios gráficos)', image: 'Imagen' };
+  const panelDefault = () => ({ title: '', chart_type: 'bar_comparison', color: 'orange', series_names: '', table: '', options: {} });
   const DEFAULTS = {
     heading: () => ({ tag: '', title: '' }),
     paragraph: () => ({ text: '' }),
     callout: () => ({ color: 'orange', text: '' }),
-    chart: () => ({ chart_type: 'bar_comparison', title: '', subtitle: '', source: '', color: 'orange', series_names: '', table: '' }),
+    chart: () => ({ chart_type: 'bar_comparison', title: '', subtitle: '', note: '', source: '', color: 'orange', series_names: '', table: '', options: {} }),
+    figure: () => ({ title: '', subtitle: '', note: '', source: '', panels: [panelDefault(), panelDefault()] }),
     image: () => ({ url: '', caption: '' }),
   };
+  const debounced = fn => { let t = null; return () => { clearTimeout(t); t = setTimeout(fn, 150); }; };
 
   function idx(b) { return state.blocks.indexOf(b); }
   function move(b, d) {
@@ -237,9 +241,6 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
     },
     chart(b) {
       const d = b.data;
-      if (!d.options || typeof d.options !== 'object') d.options = {};
-      if (!CHART_SPECS[d.chart_type]) d.chart_type = 'bar_comparison';
-      const colorOpts = Object.entries(ACCENTS).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
       const n = el(`<div class="blk" data-uid="${b.uid}"><div class="chart-card">
         <div class="chart-head">
           <div class="chart-titles">
@@ -250,58 +251,68 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
         </div>
         <div class="chart-wrap"></div>
         <div class="chart-empty" hidden>Cargá los datos acá abajo y el gráfico aparece en este lugar.</div>
+        <div class="chart-note"><input class="ed" placeholder="Nota al pie (opcional): aclaraciones metodológicas, definiciones, cambios de serie."></div>
         <div class="chart-source">Fuente: <input class="ed inline" placeholder="Secretaría de Energía; INDEC"></div>
-        <div class="chart-data">
-          <div class="row"><label>Tipo</label><select class="ctype"></select><label>Color</label><select class="ccolor">${colorOpts}</select></div>
-          <div class="row cnames-row"><label class="cnames-label"></label><input type="text" class="cnames"></div>
-          <div class="row copts"></div>
-          <div class="ccols"></div>
-          <textarea class="ctable"></textarea>
-          <div class="hint chint"></div>
-        </div></div></div>`);
+      </div></div>`);
       n.prepend(tools(b));
-      const [inTitle, inSub, inSrc] = n.querySelectorAll('input.ed');
-      bind(inTitle, d, 'title'); bind(inSub, d, 'subtitle'); bind(inSrc, d, 'source');
-      const sel = n.querySelector('.ctype'), selColor = n.querySelector('.ccolor');
-      // El selector de tipo se arma desde CHART_SPECS (static/charts.js), por grupos.
-      CHART_GROUPS.forEach(g => {
-        const og = document.createElement('optgroup'); og.label = g;
-        Object.entries(CHART_SPECS).forEach(([k, s]) => {
-          if (s.group !== g) return;
-          const o = document.createElement('option'); o.value = k; o.textContent = s.label; og.appendChild(o);
+      bind(n.querySelector('.chart-head h3 input'), d, 'title');
+      bind(n.querySelector('.chart-head .sub input'), d, 'subtitle');
+      bind(n.querySelector('.chart-note input'), d, 'note');
+      bind(n.querySelector('.chart-source input'), d, 'source');
+      const wrap = n.querySelector('.chart-wrap'), empty = n.querySelector('.chart-empty');
+      n.querySelector('.chart-card').appendChild(chartDataPanel(d, debounced(() => drawChartIn(wrap, empty, d))));
+      n._redraw = () => drawChartIn(wrap, empty, d);
+      return n;
+    },
+    figure(b) {
+      const d = b.data;
+      if (!Array.isArray(d.panels)) d.panels = [];
+      while (d.panels.length < 2) d.panels.push(panelDefault());
+      const n = el(`<div class="blk" data-uid="${b.uid}"><div class="chart-card figure">
+        <div class="chart-head">
+          <div class="chart-titles">
+            <h3><input class="ed" placeholder="Título de la figura (común a todos los gráficos)"></h3>
+            <div class="sub"><input class="ed" placeholder="Subtítulo (opcional)"></div>
+          </div>
+          <img class="chart-logo" src="${LOGO_URL}" alt="">
+        </div>
+        <div class="figure-grid"></div>
+        <div class="figure-add"><button type="button" class="btn small secondary">+ Agregar un gráfico al lado</button> Hasta 3, uno al lado del otro. En pantallas chicas se apilan.</div>
+        <div class="chart-note"><input class="ed" placeholder="Nota al pie (opcional): aclaraciones metodológicas, definiciones, cambios de serie."></div>
+        <div class="chart-source">Fuente: <input class="ed inline" placeholder="Secretaría de Energía; INDEC"></div>
+      </div></div>`);
+      n.prepend(tools(b));
+      const card = n.querySelector('.chart-card');
+      bind(n.querySelector('.chart-head h3 input'), d, 'title');
+      bind(n.querySelector('.chart-head .sub input'), d, 'subtitle');
+      bind(card.querySelector(':scope > .chart-note input'), d, 'note');
+      bind(card.querySelector(':scope > .chart-source input'), d, 'source');
+      const grid = n.querySelector('.figure-grid'), addBtn = n.querySelector('.figure-add button');
+      const redraws = [];
+      // Cada panel es un gráfico completo: título propio, tipo, datos y opciones.
+      function renderPanels() {
+        grid.innerHTML = ''; redraws.length = 0;
+        grid.className = 'figure-grid cols-' + d.panels.length;
+        d.panels.forEach((pd, i) => {
+          const p = el(`<div class="figure-panel">
+            <div class="panel-head"><div class="panel-title"><input class="ed" placeholder="Título de este gráfico (opcional)"></div>${d.panels.length > 1 ? '<button type="button" class="linklike danger panel-del">quitar</button>' : ''}</div>
+            <div class="chart-wrap"></div>
+            <div class="chart-empty" hidden>Cargá los datos abajo.</div>
+          </div>`);
+          bind(p.querySelector('.panel-title input'), pd, 'title');
+          const wrap = p.querySelector('.chart-wrap'), empty = p.querySelector('.chart-empty');
+          p.appendChild(chartDataPanel(pd, debounced(() => drawChartIn(wrap, empty, pd))));
+          const del = p.querySelector('.panel-del');
+          if (del) del.addEventListener('click', () => { if (!confirm('¿Quitar este gráfico de la figura?')) return; d.panels.splice(i, 1); dirty(); renderPanels(); });
+          grid.appendChild(p);
+          redraws.push(() => drawChartIn(wrap, empty, pd));
         });
-        sel.appendChild(og);
-      });
-      sel.value = d.chart_type;
-      selColor.value = d.color || 'orange';
-      let timer = null;
-      const redraw = () => { clearTimeout(timer); timer = setTimeout(() => drawChart(n, d), 150); };
-      const inNames = n.querySelector('.cnames'), taTable = n.querySelector('.ctable'), optsRow = n.querySelector('.copts');
-      bind(inNames, d, 'series_names', redraw);
-      bind(taTable, d, 'table', redraw);
-      // El panel de carga cambia con el tipo: qué columnas lleva la tabla, qué
-      // significan los "nombres de series" y qué opciones tiene.
-      function buildPanel() {
-        const spec = CHART_SPECS[d.chart_type];
-        n.querySelector('.cnames-row').hidden = !spec.names;
-        n.querySelector('.cnames-label').textContent = spec.names || '';
-        inNames.placeholder = spec.names_placeholder || 'Separados por coma';
-        optsRow.innerHTML = '';
-        (spec.options || []).forEach(o => {
-          const lab = document.createElement('label'); lab.textContent = o.label;
-          const inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = o.placeholder || '';
-          inp.value = d.options[o.key] || '';
-          inp.addEventListener('input', () => { d.options[o.key] = inp.value; dirty(); redraw(); });
-          optsRow.append(lab, inp);
-        });
-        optsRow.hidden = !(spec.options && spec.options.length);
-        n.querySelector('.ccols').textContent = 'Columnas: ' + spec.columns;
-        taTable.placeholder = spec.placeholder;
-        n.querySelector('.chint').textContent = spec.hint + ' Una fila por línea, columnas separadas con "|"; si falta un dato, dejá el valor vacío.';
+        addBtn.disabled = d.panels.length >= 3;
+        if (n.isConnected) redraws.forEach(f => f());
       }
-      sel.addEventListener('change', () => { d.chart_type = sel.value; dirty(); buildPanel(); redraw(); });
-      selColor.addEventListener('change', () => { d.color = selColor.value; dirty(); redraw(); });
-      buildPanel();
+      addBtn.addEventListener('click', () => { if (d.panels.length >= 3) return; d.panels.push(panelDefault()); dirty(); renderPanels(); });
+      renderPanels();
+      n._redraw = () => redraws.forEach(f => f());
       return n;
     },
     image(b) {
@@ -354,10 +365,63 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
     },
   };
 
-  // Dibuja el gráfico de un bloque con los datos actuales (parseChartTable y
+  // Panel de carga de un gráfico (tipo, color, series, opciones, tabla). Lo
+  // usan el bloque "gráfico" y cada panel de una "figura". El contenido
+  // cambia con el tipo: qué columnas lleva la tabla, qué significan los
+  // "nombres de series" y qué opciones tiene (todo sale de CHART_SPECS).
+  function chartDataPanel(d, redraw) {
+    if (!d.options || typeof d.options !== 'object') d.options = {};
+    if (!CHART_SPECS[d.chart_type]) d.chart_type = 'bar_comparison';
+    const colorOpts = Object.entries(ACCENTS).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+    const panel = el(`<div class="chart-data">
+      <div class="row"><label>Tipo</label><select class="ctype"></select><label>Color</label><select class="ccolor">${colorOpts}</select></div>
+      <div class="row cnames-row"><label class="cnames-label"></label><input type="text" class="cnames"></div>
+      <div class="row copts"></div>
+      <div class="ccols"></div>
+      <textarea class="ctable"></textarea>
+      <div class="hint chint"></div>
+    </div>`);
+    const sel = panel.querySelector('.ctype'), selColor = panel.querySelector('.ccolor');
+    CHART_GROUPS.forEach(g => {
+      const og = document.createElement('optgroup'); og.label = g;
+      Object.entries(CHART_SPECS).forEach(([k, s]) => {
+        if (s.group !== g) return;
+        const o = document.createElement('option'); o.value = k; o.textContent = s.label; og.appendChild(o);
+      });
+      sel.appendChild(og);
+    });
+    sel.value = d.chart_type;
+    selColor.value = d.color || 'orange';
+    const inNames = panel.querySelector('.cnames'), taTable = panel.querySelector('.ctable'), optsRow = panel.querySelector('.copts');
+    bind(inNames, d, 'series_names', redraw);
+    bind(taTable, d, 'table', redraw);
+    function buildPanel() {
+      const spec = CHART_SPECS[d.chart_type];
+      panel.querySelector('.cnames-row').hidden = !spec.names;
+      panel.querySelector('.cnames-label').textContent = spec.names || '';
+      inNames.placeholder = spec.names_placeholder || 'Separados por coma';
+      optsRow.innerHTML = '';
+      (spec.options || []).forEach(o => {
+        const lab = document.createElement('label'); lab.textContent = o.label;
+        const inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = o.placeholder || '';
+        inp.value = d.options[o.key] || '';
+        inp.addEventListener('input', () => { d.options[o.key] = inp.value; dirty(); redraw(); });
+        optsRow.append(lab, inp);
+      });
+      optsRow.hidden = !(spec.options && spec.options.length);
+      panel.querySelector('.ccols').textContent = 'Columnas: ' + spec.columns;
+      taTable.placeholder = spec.placeholder;
+      panel.querySelector('.chint').textContent = spec.hint + ' Una fila por línea, columnas separadas con "|"; si falta un dato, dejá el valor vacío.';
+    }
+    sel.addEventListener('change', () => { d.chart_type = sel.value; dirty(); buildPanel(); redraw(); });
+    selColor.addEventListener('change', () => { d.color = selColor.value; dirty(); redraw(); });
+    buildPanel();
+    return panel;
+  }
+
+  // Dibuja un gráfico en su caja con los datos actuales (parseChartTable y
   // renderPostChart vienen de static/charts.js, los mismos que usa el post).
-  function drawChart(node, d) {
-    const wrap = node.querySelector('.chart-wrap'), empty = node.querySelector('.chart-empty');
+  function drawChartIn(wrap, empty, d) {
     const spec = CHART_SPECS[d.chart_type] || CHART_SPECS.bar_comparison;
     if (spec.kind === 'canvas' && typeof Chart === 'undefined') {
       wrap.hidden = true; empty.hidden = false;
@@ -373,16 +437,12 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
                             series_names: names, color: d.color, options: d.options }, ACCENT_HEX, { animate: false });
   }
   function redrawAllCharts() {
-    state.blocks.forEach(b => {
-      if (b.type !== 'chart') return;
-      const n = container.querySelector(`[data-uid="${b.uid}"]`);
-      if (n) drawChart(n, b.data);
-    });
+    container.querySelectorAll('.blk').forEach(n => { if (n._redraw) n._redraw(); });
   }
 
   // Barra fina entre bloques: al pasar el mouse muestra "insertar acá".
   const INS_HTML = '<div class="ins"><span class="ins-line"></span><span class="ins-btns"><span class="ins-lbl">insertar acá:</span>' +
-    [['heading', 'Sección'], ['paragraph', 'Párrafo'], ['callout', 'Destacado'], ['chart', 'Gráfico'], ['image', 'Imagen']]
+    [['heading', 'Sección'], ['paragraph', 'Párrafo'], ['callout', 'Destacado'], ['chart', 'Gráfico'], ['figure', 'Figura'], ['image', 'Imagen']]
       .map(([t, l]) => `<button type="button" data-add="${t}">+ ${l}</button>`).join('') + '</span></div>';
   function insertBar(at) {
     const bar = el(INS_HTML);
@@ -399,7 +459,7 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
       container.appendChild(insertBar(i));
       const node = RENDER[b.type](b, b.type === 'heading' ? roman(h++) : null);
       container.appendChild(node);
-      if (b.type === 'chart') drawChart(node, b.data);
+      if (node._redraw) node._redraw();   // los gráficos se dibujan ya conectados al DOM
     });
     growAll(container);
   }
