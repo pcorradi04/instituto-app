@@ -157,6 +157,11 @@ ok(html.count('class="chart-wrap"') == 3 and "sin datos: no se muestra a los lec
    and 'src=""' not in html, "gráfico sin datos e imagen sin URL: no dejan cuadros vacíos (el admin ve un aviso)")
 ok('data-mode="copy"' in html and 'data-mode="download"' in html and 'data-filename="grafico"' in html,
    "cada tarjeta de gráfico tiene botones de copiar y descargar PNG")
+ok('class="hero"' not in html and 'class="post-head"' in html and html.count('class="chart-logo"') == 3,
+   "post: sin la banda beige (encabezado dentro del cuerpo) y logo gris arriba a la derecha de cada gráfico")
+ok('class="hero"' in text(anon.get("/")), "la portada conserva la banda beige")
+ok('class="post-head"' in text(c.get(f"/admin/posts/{pid}/edit")) and 'class="hero"' not in text(c.get(f"/admin/posts/{pid}/edit")),
+   "el editor refleja el mismo encabezado que el post")
 ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
 ok('"table": "Gas 2025 | Chile | 340.8\\nGas 2025 | Uruguay | 5.1"' in ehtml, "editor: la tabla del Sankey vuelve con su columna de texto")
 save({**GENERAL, "blocks": BLOCKS})

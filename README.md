@@ -137,6 +137,11 @@ Cada post publicado recibe un **número correlativo** (N.º 1, N.º 2...) la
 primera vez que se publica; no cambia aunque se despublique y se vuelva a
 publicar. Se ve en la portada y arriba del título.
 
+La banda beige con el título grande es solo de la portada; en cada post el
+encabezado (número, etiqueta, título, firma, copete) va dentro del cuerpo.
+Cada gráfico lleva el logo gris del Instituto arriba a la derecha, que
+también sale en el PNG.
+
 Además, cada post muestra autor y fecha debajo del título (el autor se
 carga en el editor, en la línea "Por ...") y botones para compartir en X,
 LinkedIn y WhatsApp o copiar el link. Son links simples, sin rastreo.

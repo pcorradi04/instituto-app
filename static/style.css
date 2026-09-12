@@ -53,11 +53,23 @@ section:last-of-type{border-bottom:none;}
 h2{font-size:clamp(22px,2.4vw,29px); margin:0 0 14px; font-weight:700;}
 .section-intro, .block-p{max-width:80ch; color:var(--ink); font-size:16px; margin-bottom:22px;}
 
+/* ---------- encabezado del post (dentro del cuerpo; la banda beige es solo de la portada) ---------- */
+.post-head{padding:44px 0 26px; margin-bottom:6px; border-bottom:1px solid var(--line);}
+.post-head .eyebrow{text-transform:uppercase; letter-spacing:0.14em; font-size:12px; color:var(--accent, var(--blue)); font-weight:700; margin-bottom:14px;}
+.post-head h1{font-size:clamp(28px,3.6vw,44px); line-height:1.16; margin:0 0 12px; max-width:42ch;}
+.post-head .byline{font-size:13px; color:var(--ink-soft); margin:0 0 16px;}
+.post-head .lede{max-width:80ch; color:var(--ink-soft); font-size:17px; line-height:1.55; margin:0;}
+
 /* ---------- chart card ---------- */
-.chart-card{position:relative; background:#fff; border:1px solid var(--line); padding:22px 84px 10px 22px; margin-bottom:28px;}
-.chart-card::after{content:''; position:absolute; top:18px; right:20px; width:58px; height:47px; background-image:url('/static/img/logo-watermark.png'); background-size:contain; background-repeat:no-repeat; background-position:top right; opacity:0.55; pointer-events:none;}
-.chart-card h3{font-size:16px; margin:0 0 2px; color:var(--ink); font-weight:700; max-width:80%;}
-.chart-card .sub{font-size:12.5px; color:var(--ink-soft); margin-bottom:16px; font-style:italic;}
+.chart-card{position:relative; background:#fff; border:1px solid var(--line); padding:18px 22px 10px; margin-bottom:28px;}
+/* Encabezado de la tarjeta: título y subtítulo a la izquierda, el logo gris
+   del Instituto arriba a la derecha (forma parte de la tarjeta, así también
+   sale en el PNG). */
+.chart-head{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:12px; min-height:60px;}
+.chart-head .chart-titles{flex:1; min-width:0;}
+.chart-logo{width:120px; height:auto; flex:0 0 auto; opacity:.9;}
+.chart-card h3{font-size:16px; margin:0 0 2px; color:var(--ink); font-weight:700;}
+.chart-card .sub{font-size:12.5px; color:var(--ink-soft); font-style:italic;}
 .chart-wrap{position:relative; height:clamp(240px, 55vw, 380px);}   /* más bajo en pantallas chicas */
 .chart-wrap.auto{height:auto !important; min-height:0;}   /* gráficos en SVG/HTML: altura propia */
 .chart-foot{display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap;}
@@ -93,7 +105,6 @@ mark.search-hit.current{background:var(--orange);}
 .search-count{font-size:11px; color:var(--ink-soft); position:absolute; right:8px; top:50%; transform:translateY(-50%);}
 
 /* ---------- firma, compartir y comentarios ---------- */
-.hero .byline{font-size:13px; color:var(--ink-soft); margin:-8px 0 16px;}
 .share{display:flex; gap:16px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:var(--ink-soft); padding:18px 0 0; margin-top:28px; border-top:1px solid var(--line);}
 .share a, .share button{font:inherit; color:var(--blue); background:none; border:0; padding:0; cursor:pointer; text-decoration:underline;}
 .comments h2{display:flex; align-items:baseline; gap:10px;}
@@ -128,6 +139,7 @@ form.inline{display:inline;}
 @media (max-width:860px){
   .brand-bar{flex-direction:column; padding:14px 4vw; gap:10px;}
   .hero{padding-left:6vw; border-left-width:14px;}
+  .chart-logo{width:90px;}
   .comment-form .row{grid-template-columns:1fr;}
   .comment.reply{margin-left:12px;}
 }

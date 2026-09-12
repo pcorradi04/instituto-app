@@ -6,7 +6,8 @@
 {% endblock %}
 {% block content %}
 
-<div class="hero">
+<main>
+<header class="post-head">
   {% if post['post_number'] or post['eyebrow'] %}
   <div class="eyebrow">{% if post['post_number'] %}N.º {{ post['post_number'] }}{% if post['eyebrow'] %} · {% endif %}{% endif %}{{ post['eyebrow'] }}</div>
   {% endif %}
@@ -14,9 +15,8 @@
   <div class="byline">{% if post['author'] %}Por {{ post['author'] }}{% if post['published_at'] %} · {{ post['published_at'] | fecha_es }}{% endif %}{% elif post['published_at'] %}Publicado el {{ post['published_at'] | fecha_es }}{% else %}Borrador{% endif %}</div>
   {% if post['dek'] %}<p class="lede">{{ post['dek'] }}</p>{% endif %}
   {% if post['status'] == 'draft' %}<p class="lede" style="color:#A63D2F; font-weight:bold;">[BORRADOR — no visible públicamente]</p>{% endif %}
-</div>
+</header>
 
-<main>
 <section style="border-bottom:none;">
 
   {% for b in blocks %}
@@ -38,8 +38,13 @@
 
     {% elif b.type == 'chart' and (b.data.rows or b.data.labels) %}
       <div class="chart-card" data-filename="{{ (b.data.title or 'grafico') | slug }}">
-        {% if b.data.title %}<h3>{{ b.data.title }}</h3>{% endif %}
-        {% if b.data.subtitle %}<div class="sub">{{ b.data.subtitle }}</div>{% endif %}
+        <div class="chart-head">
+          <div class="chart-titles">
+            {% if b.data.title %}<h3>{{ b.data.title }}</h3>{% endif %}
+            {% if b.data.subtitle %}<div class="sub">{{ b.data.subtitle }}</div>{% endif %}
+          </div>
+          <img class="chart-logo" src="{{ url_for('static', filename='img/logo-watermark.png') }}" alt="Instituto de Energía — Universidad Austral">
+        </div>
         <div class="chart-wrap" id="chart-{{ b.id }}"></div>
         <div class="chart-foot">
           <div class="chart-source">{% if b.data.source %}Fuente: {{ b.data.source }}{% endif %}</div>

@@ -410,11 +410,15 @@ entre turnos. Estado al cierre de esa ronda:
   `height` por gráfico; destacados a ancho completo; "Copiar PNG" /
   "Descargar PNG" por tarjeta de gráfico (html2canvas desde cdnjs,
   cargado bajo demanda, `chartCardToPng` en charts.js).
-  **Ambiguo, a confirmar con Pedro**: "eliminar el encabezado repetido
-  manteniendo título, texto y gráficos" se interpretó como el texto
-  institucional repetido en el hero, NO como sacar los numerales/etiquetas
-  de sección del formato Austral. "Configuración del logo": los logos
-  cargan bien online; se asumió que era el favicon que faltaba.
+  Pedro aclaró después los dos puntos ambiguos: (1) "encabezado repetido"
+  = la banda beige (`.hero`) debe estar SOLO en la portada; en cada post
+  el título/firma/copete van dentro del cuerpo blanco (`header.post-head`
+  en post.html y en el editor). (2) "logo" = el logo gris del Instituto
+  arriba a la derecha de cada gráfico: antes era un `::after` de 58 px al
+  55 % de opacidad, casi invisible; ahora es un `<img class="chart-logo">`
+  de 120 px dentro de `.chart-head` (título/subtítulo a la izquierda,
+  logo a la derecha), parte de la tarjeta y del PNG. Las imágenes ya no
+  llevan marca de agua (no son gráficos del Instituto).
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.
