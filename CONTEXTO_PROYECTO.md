@@ -390,6 +390,31 @@ entre turnos. Estado al cierre de esa ronda:
   con `location.href` (sin rastreo). Sin aviso por mail (el plan gratis
   de PythonAnywhere restringe SMTP; no se probó). Fase 2 pendiente: RSS,
   etiquetas clickeables, paginación, reacciones, suscripción por mail.
+- **Lote de la reunión (11 sep 2026)**. Pedro pegó la lista de acciones de
+  una reunión (transcripta por una herramienta, así que con ruido). Hecho:
+  aviso por mail de comentarios con links firmados de aprobar/borrar
+  (`/moderar/<token>`, `itsdangerous`, SMTP Gmail: el plan gratis de
+  PythonAnywhere solo permite smtp.gmail.com; variables SMTP_* y SITE_URL
+  en `.env`, mail en un hilo aparte, `send_email_async` se monkeypatchea
+  en el test); número correlativo por post (`post_number`, columna
+  agregada por migración en `init_db`, asignado en la primera publicación,
+  los ya publicados se numeran por fecha al arrancar); menos texto
+  repetido en el hero (eyebrow y firma solo si hay dato; "Publicado el
+  fecha" si no hay autor; etiqueta de sección solo si existe); favicon
+  (`static/img/favicon.png`, recorte del emblema del logo, ruta
+  `/favicon.ico`); insertar bloques entre bloques en el editor (barra
+  `.ins` al pasar el mouse); Sankey acepta "Destino | valor" con la
+  opción `origin` (o el título del gráfico) y calcula el ancho de las
+  etiquetas; gráficos e imágenes sin datos no se muestran al público (el
+  admin ve un aviso); alto de gráficos responsive (`clamp`) + opción
+  `height` por gráfico; destacados a ancho completo; "Copiar PNG" /
+  "Descargar PNG" por tarjeta de gráfico (html2canvas desde cdnjs,
+  cargado bajo demanda, `chartCardToPng` en charts.js).
+  **Ambiguo, a confirmar con Pedro**: "eliminar el encabezado repetido
+  manteniendo título, texto y gráficos" se interpretó como el texto
+  institucional repetido en el hero, NO como sacar los numerales/etiquetas
+  de sección del formato Austral. "Configuración del logo": los logos
+  cargan bien online; se asumió que era el favicon que faltaba.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

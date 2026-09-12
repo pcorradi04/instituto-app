@@ -105,6 +105,16 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .img-url{font-family:'Courier New',monospace; font-size:11.5px; color:var(--ink-soft); margin-top:8px; display:flex; gap:8px; align-items:center;}
 .img-url input{font-family:inherit; font-size:11.5px; flex:1; border:1px solid var(--line); padding:4px 6px; background:#fdfdfb;}
 
+/* insertar entre bloques */
+.ins{position:relative; height:18px; margin:0 -10px;}
+.ins .ins-line{position:absolute; left:0; right:0; top:8px; border-top:1px dashed transparent;}
+.ins .ins-btns{position:absolute; left:50%; top:-4px; transform:translateX(-50%); display:flex; gap:4px; align-items:center; background:#fff; border:1px solid var(--line); padding:2px 6px; font-family:'Courier New',monospace; font-size:11px; opacity:0; transition:opacity .12s; z-index:6; white-space:nowrap;}
+.ins:hover .ins-line{border-top-color:rgba(0,0,204,.35);}
+.ins:hover .ins-btns, .ins .ins-btns:focus-within{opacity:1;}
+.ins .ins-lbl{color:var(--ink-soft); margin-right:4px;}
+.ins button{background:#fff; border:1px solid var(--line); font-family:inherit; font-size:11px; padding:2px 7px; cursor:pointer; color:var(--ink);}
+.ins button:hover{border-color:var(--accent, var(--blue)); color:var(--accent, var(--blue));}
+
 /* agregar bloque */
 .add-bar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:18px 0 40px; border-top:1px dashed var(--line); margin-top:16px; font-family:'Courier New',monospace; font-size:12px; color:var(--ink-soft);}
 .add-bar button{background:#fff; border:1px solid var(--line); padding:7px 12px; font-family:inherit; font-size:12px; cursor:pointer; color:var(--ink);}

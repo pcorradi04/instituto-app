@@ -124,6 +124,33 @@ Si ve un error en vez del sitio: pestaña "Web" → sección "Log files" →
 `USUARIO` sin reemplazar, o la versión de Python del virtualenv distinta a la
 de la web app).
 
+## 5b. Avisos por mail cuando llega un comentario (opcional)
+
+Cada comentario nuevo puede avisarse por mail, con dos links: "Aprobar" y
+"Borrar". Se hace con una cuenta de Gmail (el plan gratis de PythonAnywhere
+solo deja mandar mails por Gmail).
+
+1. Entrá a la cuenta de Google que va a mandar los avisos (puede ser una
+   cuenta del Instituto o la tuya). Activá la verificación en dos pasos si
+   no está: https://myaccount.google.com/security
+2. Creá una **contraseña de aplicación**: https://myaccount.google.com/apppasswords
+   → nombre "Blog Instituto" → te da 16 letras. Copialas.
+3. En PythonAnywhere, pestaña "Files" → `instituto-app` → `.env`, agregá al
+   final (sin espacios alrededor del `=`):
+   ```
+   SMTP_USER=la-cuenta@gmail.com
+   SMTP_PASSWORD=las16letrasdelacontraseñadeaplicacion
+   NOTIFY_EMAIL=quien-recibe-los-avisos@ejemplo.com
+   SITE_URL=https://institutoenergia.pythonanywhere.com
+   ```
+   (`NOTIFY_EMAIL` puede ser otra cuenta, o varias personas si usan una
+   lista de distribución. Si lo dejás vacío, llega a `SMTP_USER`.)
+4. Pestaña "Web" → **Reload**.
+
+Probalo dejando un comentario como lector: en un minuto tiene que llegar el
+mail. Si no llega, "Web" → "Log files" → error log dice por qué (casi
+siempre: contraseña de aplicación mal copiada).
+
 ## 6. Mantenimiento
 
 **Cada vez que cambie el código** (después de un `git push` desde tu

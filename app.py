@@ -20,13 +20,17 @@ import json
 import sqlite3
 import unicodedata
 import secrets
+import smtplib
+import threading
 from datetime import datetime, timezone, timedelta
+from email.message import EmailMessage
 from functools import wraps
 
 from flask import (
     Flask, request, session, redirect, url_for, render_template,
     g, flash, abort, send_from_directory
 )
+from itsdangerous import URLSafeSerializer, BadSignature
 from markupsafe import escape
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -93,6 +97,20 @@ BLOCK_TYPES = ["heading", "paragraph", "callout", "chart", "image"]
 STAFF_NAME = "Instituto de Energía"
 COMMENT_LIMIT_PER_10MIN = 3   # comentarios por dirección IP cada 10 minutos
 
+# Aviso por mail cuando llega un comentario (opcional). Con Gmail: crear una
+# "contraseña de aplicación" en la cuenta de Google y poner en el .env:
+#   SMTP_USER=cuenta@gmail.com   SMTP_PASSWORD=la-contraseña-de-aplicación
+#   NOTIFY_EMAIL=quien-recibe@...   (si falta, se manda a SMTP_USER)
+# Si SMTP_USER o SMTP_PASSWORD faltan, no se manda nada y todo funciona igual.
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "") or SMTP_USER
+# Dirección pública del sitio, para armar los links de los mails
+# (ej. https://institutoenergia.pythonanywhere.com). Si falta, se deduce.
+SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
+
 
 # ---------------------------------------------------------------------------
 # Base de datos
@@ -151,6 +169,22 @@ def init_db():
         created_at TEXT NOT NULL
     );
     """)
+    # Migraciones chicas: columnas agregadas después de la primera versión.
+    cols = {r[1] for r in db.execute("PRAGMA table_info(posts)")}
+    if "post_number" not in cols:
+        try:
+            db.execute("ALTER TABLE posts ADD COLUMN post_number INTEGER")
+        except sqlite3.OperationalError:
+            pass  # otro proceso la agregó al mismo tiempo (recargador / varios workers)
+    # Número correlativo, único y cronológico para cada post publicado: se
+    # asigna la primera vez que se publica y no cambia más. Acá se numeran
+    # los que ya estaban publicados sin número (ej. el post del seed).
+    n = db.execute("SELECT COALESCE(MAX(post_number), 0) FROM posts").fetchone()[0]
+    for row in db.execute(
+        "SELECT id FROM posts WHERE published_at IS NOT NULL AND post_number IS NULL ORDER BY published_at"
+    ).fetchall():
+        n += 1
+        db.execute("UPDATE posts SET post_number = ? WHERE id = ?", (n, row[0]))
     db.commit()
     db.close()
 
@@ -208,6 +242,9 @@ def slugify(text):
     text = text.lower().strip()
     text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
     return text or "post"
+
+
+app.jinja_env.filters["slug"] = slugify
 
 
 def unique_slug(db, base, exclude_id=None):
@@ -301,6 +338,63 @@ def safe_next(default):
     return nxt
 
 
+# ---------------------------------------------------------------------------
+# Avisos por mail (comentarios nuevos) con links para aprobar o borrar
+# ---------------------------------------------------------------------------
+
+def send_email(subject, body):
+    """Manda un mail de texto plano por SMTP. Devuelve True si salió."""
+    if not (SMTP_USER and SMTP_PASSWORD and NOTIFY_EMAIL):
+        return False
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = SMTP_USER
+    msg["To"] = NOTIFY_EMAIL
+    msg.set_content(body)
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
+            s.starttls()
+            s.login(SMTP_USER, SMTP_PASSWORD)
+            s.send_message(msg)
+        return True
+    except Exception as e:  # un mail caído no tiene que romper el sitio
+        app.logger.warning("No se pudo mandar el mail de aviso: %s", e)
+        return False
+
+
+def send_email_async(subject, body):
+    """El mail sale en segundo plano, para no demorar la respuesta al lector."""
+    if not (SMTP_USER and SMTP_PASSWORD and NOTIFY_EMAIL):
+        return
+    threading.Thread(target=send_email, args=(subject, body), daemon=True).start()
+
+
+def moderation_token(cid, action):
+    """Token firmado con la SECRET_KEY: identifica el comentario y la acción.
+    Es la credencial del link del mail, por eso no hace falta login."""
+    return URLSafeSerializer(app.secret_key, salt="moderacion-comentarios").dumps({"c": cid, "a": action})
+
+
+def site_url():
+    base = SITE_URL or request.url_root.rstrip("/")
+    if app.config["SESSION_COOKIE_SECURE"] and base.startswith("http://"):
+        base = "https://" + base[len("http://"):]
+    return base
+
+
+def notify_new_comment(post, cid, name, email, body):
+    base = site_url()
+    text = (
+        f'Nuevo comentario en "{post["title"]}"\n\n'
+        f"De: {name}" + (f" <{email}>" if email else "") + "\n\n"
+        f"{body}\n\n"
+        f"Aprobar:  {base}{url_for('moderate_comment', token=moderation_token(cid, 'approve'))}\n"
+        f"Borrar:   {base}{url_for('moderate_comment', token=moderation_token(cid, 'delete'))}\n"
+        f"Ver post: {base}{url_for('show_post', slug=post['slug'])}#c{cid}\n"
+    )
+    send_email_async(f"[Blog Instituto de Energía] Comentario de {name} para aprobar", text)
+
+
 def parse_table(raw):
     """Convierte líneas 'Etiqueta | val1 | val2' en:
     - labels: la primera columna de cada fila,
@@ -388,6 +482,12 @@ def save_upload(fs):
 def uploaded_file(filename):
     # send_from_directory rechaza rutas que intenten salir de UPLOAD_DIR.
     return send_from_directory(UPLOAD_DIR, filename)
+
+
+@app.route("/favicon.ico")
+def favicon():
+    # Los navegadores piden /favicon.ico por costumbre; el ícono real es un PNG.
+    return redirect(url_for("static", filename="img/favicon.png"))
 
 
 @app.errorhandler(413)
@@ -501,7 +601,7 @@ def post_comment(slug):
         if parent and parent["parent_id"]:
             parent = db.execute("SELECT * FROM comments WHERE id = ?", (parent["parent_id"],)).fetchone()
     now = datetime.now(timezone.utc).isoformat()
-    db.execute(
+    cur = db.execute(
         """INSERT INTO comments (post_id, parent_id, name, email, body, status, is_staff, ip, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (post["id"], parent["id"] if parent else None, name, email, body,
@@ -513,7 +613,35 @@ def post_comment(slug):
     else:
         session["commenter_name"] = name
         flash("¡Gracias! Tu comentario se va a publicar cuando lo revise el equipo del Instituto.", "comment-ok")
+        notify_new_comment(post, cur.lastrowid, name, email, body)
     return redirect(back)
+
+
+@app.route("/moderar/<token>")
+def moderate_comment(token):
+    """Aprobar o borrar un comentario desde el link del mail de aviso."""
+    try:
+        data = URLSafeSerializer(app.secret_key, salt="moderacion-comentarios").loads(token)
+    except BadSignature:
+        abort(404)
+    db = get_db()
+    c = db.execute(
+        """SELECT c.*, p.slug AS post_slug, p.title AS post_title
+           FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.id = ?""", (data.get("c"),)
+    ).fetchone()
+    if not c:
+        return render_template("admin_moderate.html", result="missing", comment=None), 404
+    if data.get("a") == "approve":
+        db.execute("UPDATE comments SET status = 'approved' WHERE id = ?", (c["id"],))
+        result = "approved"
+    elif data.get("a") == "delete":
+        db.execute("DELETE FROM comments WHERE parent_id = ?", (c["id"],))
+        db.execute("DELETE FROM comments WHERE id = ?", (c["id"],))
+        result = "deleted"
+    else:
+        abort(404)
+    db.commit()
+    return render_template("admin_moderate.html", result=result, comment=c)
 
 
 # ---------------------------------------------------------------------------
@@ -608,6 +736,11 @@ def admin_toggle_publish(post_id):
             "UPDATE posts SET status='published', updated_at=?, published_at=? WHERE id=?",
             (now, published_at, post_id),
         )
+        if post["post_number"] is None:
+            # Número correlativo, único y cronológico: se asigna la primera
+            # vez que el post se publica y ya no cambia.
+            next_n = db.execute("SELECT COALESCE(MAX(post_number), 0) + 1 FROM posts").fetchone()[0]
+            db.execute("UPDATE posts SET post_number = ? WHERE id = ?", (next_n, post_id))
         flash("Post publicado.", "ok")
     db.commit()
     # El editor manda next=<su propia URL> para volver ahí; el dashboard no

@@ -123,9 +123,10 @@
       hint: 'Bloques de tamaño proporcional al valor (ej. participación por empresa).',
       placeholder: 'YPF | 574.1\nVista Oil & Gas | 569\nChevron Argentina | 407.3\nOtras (10+ empresas) | 515.9', options: [OPT_UNIT] },
     sankey: { label: 'Sankey (flujos origen → destino)', group: 'Composición', kind: 'html',
-      columns: 'Origen | Destino | valor', names: null,
-      hint: 'Cintas de origen a destino con grosor proporcional al valor. Puede haber varios orígenes y varios destinos.',
-      placeholder: 'Gas exportado 2025 | Chile | 340.8\nGas exportado 2025 | Uruguay | 5.1\nGas exportado 2025 | Brasil | 2.5', options: [OPT_UNIT] },
+      columns: 'Destino | valor   (con un solo origen)   —o—   Origen | Destino | valor   (varios orígenes)', names: null,
+      hint: 'Cintas de origen a destino, de grosor proporcional al valor. Lo más simple: una fila por destino con "Destino | valor" y el nombre del origen en la opción de abajo. Si hay varios orígenes, tres columnas.',
+      placeholder: 'Chile | 340.8\nUruguay | 5.1\nBrasil | 2.5',
+      options: [{ key: 'origin', label: 'Origen (si cargás Destino | valor)', placeholder: 'Gas exportado 2025' }, OPT_UNIT] },
     shaded_list: { label: 'Mapa esquemático por zona (lista sombreada)', group: 'Composición', kind: 'html',
       columns: 'Zona | valor', names: null,
       hint: 'Lista de zonas sombreadas según el valor, en el orden que las cargues (ej. cuencas de norte a sur). Esquemático, no es un mapa real.',
@@ -147,6 +148,9 @@
       placeholder: 'Estrés: medio-alto | 58',
       options: [{ key: 'left_label', label: 'Etiqueta izquierda', placeholder: 'Bajo' }, { key: 'right_label', label: 'Etiqueta derecha', placeholder: 'Alto' }] },
   };
+  // Los gráficos de Chart.js aceptan un alto a medida (los de SVG/HTML tienen el suyo).
+  const OPT_H = { key: 'height', label: 'Alto del gráfico (px)', placeholder: '360' };
+  Object.values(SPECS).forEach(s => { if (s.kind === 'canvas') s.options = (s.options || []).concat([OPT_H]); });
   window.CHART_SPECS = SPECS;
   window.CHART_GROUPS = GROUPS;
 
@@ -351,9 +355,15 @@
     return htmlIn(c, html + '</div>');
   };
   R.sankey = (c, def, P) => {
-    const flows = def.rows.map(r => ({ s: r[0], t: r[1], v: num(r[2]) })).filter(f => f.s && f.t && f.v > 0);
+    // Filas "Origen | Destino | valor", o "Destino | valor" con un origen
+    // único: el de la opción "origin", o el título del gráfico.
+    const single = def.options.origin || def.title || 'Origen';
+    const flows = def.rows.map(r => (r.length >= 3 && r[2] !== '' && num(r[2]) != null)
+      ? { s: r[0], t: r[1], v: num(r[2]) }
+      : { s: single, t: r[0], v: num(r[1]) }).filter(f => f.s && f.t && f.v > 0);
     if (!flows.length) return htmlIn(c, '');
     const unit = def.options.unit || '';
+    const label = n => `${n.name} — ${fmt(n.total)}${unit ? ' ' + unit : ''}`;
     const srcs = [], tgts = [];
     const node = (arr, name) => { let n = arr.find(x => x.name === name); if (!n) { n = { name, total: 0, off: 0 }; arr.push(n); } return n; };
     flows.forEach(f => { node(srcs, f.s).total += f.v; node(tgts, f.t).total += f.v; });
@@ -362,7 +372,10 @@
     const gap = 12, padT = 16, padB = 12;
     const H = Math.max(220, Math.min(460, 46 * nMax + 100));
     const k = (H - padT - padB - gap * (nMax - 1)) / total;
-    const labW = Math.min(200, Math.max(100, W * 0.28)), bw = 14, x0 = labW, x1 = W - labW;
+    // Ancho de las columnas de etiquetas según el texto más largo de cada lado.
+    const textW = s => Math.min(Math.round(s.length * 6.6) + 18, Math.floor(W * 0.36));
+    const labL = Math.max(90, ...srcs.map(n => textW(label(n)))), labR = Math.max(90, ...tgts.map(n => textW(label(n))));
+    const bw = 14, x0 = labL, x1 = W - labR;
     let y = padT; srcs.forEach(n => { n.y = y; n.h = Math.max(n.total * k, 2); y += n.h + gap; });
     y = padT; tgts.forEach(n => { n.y = y; n.h = Math.max(n.total * k, 2); y += n.h + gap; });
     let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" font-family="Georgia,serif">`;
@@ -372,13 +385,13 @@
       const xa = x0 + bw, xb = x1, xm = (xa + xb) / 2;
       svg += `<path d="M${xa},${sy} C${xm},${sy} ${xm},${ty} ${xb},${ty} L${xb},${ty + h} C${xm},${ty + h} ${xm},${sy + h} ${xa},${sy + h} Z" fill="${P[tgts.indexOf(t) % P.length]}" opacity="0.7"><title>${esc(f.s)} → ${esc(f.t)}: ${fmt(f.v)} ${esc(unit)}</title></path>`;
     });
-    srcs.forEach(n => { svg += `<rect x="${x0}" y="${n.y}" width="${bw}" height="${n.h}" fill="#333"/><text x="${x0 - 8}" y="${n.y + n.h / 2 + 4}" text-anchor="end" font-size="11.5" fill="${INK}">${esc(n.name)} — ${fmt(n.total)} ${esc(unit)}</text>`; });
+    srcs.forEach(n => { svg += `<rect x="${x0}" y="${n.y}" width="${bw}" height="${n.h}" fill="#333"/><text x="${x0 - 8}" y="${n.y + n.h / 2 + 4}" text-anchor="end" font-size="11.5" fill="${INK}">${esc(label(n))}</text>`; });
     let last = -Infinity;
     tgts.forEach((n, i) => {   // etiquetas separadas al menos 15px para que no se pisen
       const cy = Math.max(n.y + n.h / 2, last + 15); last = cy;
       svg += `<rect x="${x1}" y="${n.y}" width="${bw}" height="${n.h}" fill="${P[i % P.length]}"/>`;
       if (Math.abs(cy - (n.y + n.h / 2)) > 1) svg += `<line x1="${x1 + bw}" y1="${n.y + n.h / 2}" x2="${x1 + bw + 6}" y2="${cy}" stroke="#999" stroke-width="1"/>`;
-      svg += `<text x="${x1 + bw + 10}" y="${cy + 4}" font-size="11.5" fill="${INK}">${esc(n.name)} — ${fmt(n.total)} ${esc(unit)}</text>`;
+      svg += `<text x="${x1 + bw + 10}" y="${cy + 4}" font-size="11.5" fill="${INK}">${esc(label(n))}</text>`;
     });
     return htmlIn(c, svg + '</svg>');
   };
@@ -465,7 +478,42 @@
       Chart.defaults.font.family = "Georgia, 'Times New Roman', serif";
       Chart.defaults.color = SOFT;
       Chart.defaults.font.size = 11.5;
+      // Alto a medida (opción "height"); si no, el de la hoja de estilos.
+      const h = parseInt(def.options.height, 10);
+      container.style.height = (h >= 120 && h <= 1200) ? h + 'px' : '';
+    } else {
+      container.style.height = '';
     }
     return fn(container, def, P, { animate: opts.animate !== false });
+  };
+
+  // ---- copiar / descargar una tarjeta de gráfico como PNG ------------------
+  // Usa html2canvas (se carga desde el CDN recién cuando hace falta) para
+  // rasterizar la tarjeta entera: título, gráfico, fuente y marca de agua.
+  function loadHtml2Canvas() {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.onload = () => resolve(window.html2canvas);
+      s.onerror = () => reject(new Error('No se pudo cargar html2canvas'));
+      document.head.appendChild(s);
+    });
+  }
+  window.chartCardToPng = async function (card, mode) {
+    const h2c = await loadHtml2Canvas();
+    const canvas = await h2c(card, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
+      ignoreElements: el => el.classList && el.classList.contains('chart-tools') });
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    if (mode === 'copy' && navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      return 'copied';
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (card.dataset.filename || 'grafico') + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    return 'downloaded';
   };
 })();

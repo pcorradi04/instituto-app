@@ -18,7 +18,9 @@
   <div class="post-list">
     {% for post in posts %}
     <a class="post-card" href="{{ url_for('show_post', slug=post['slug']) }}" style="--accent:{{ accents_hex.get(post['accent'], '#0000CC') }}">
-      <div class="eyebrow">{{ post['eyebrow'] or 'Instituto de Energía' }}</div>
+      {% if post['post_number'] or post['eyebrow'] %}
+      <div class="eyebrow">{% if post['post_number'] %}N.º {{ post['post_number'] }}{% if post['eyebrow'] %} · {% endif %}{% endif %}{{ post['eyebrow'] }}</div>
+      {% endif %}
       <h2>{{ post['title'] }}</h2>
       {% if post['dek'] %}<p class="dek">{{ post['dek'] }}</p>{% endif %}
       <div class="meta">{{ post['published_at'] | fecha_es }}{% set n = comment_counts.get(post['id'], 0) %}{% if n %} · {{ n }} comentario{{ 's' if n != 1 }}{% endif %}</div>

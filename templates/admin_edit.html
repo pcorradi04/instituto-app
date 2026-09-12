@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editando: {{ post['title'] }}</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -362,7 +363,7 @@ const UPLOAD_URL = "{{ url_for('admin_upload') }}";
     wrap.hidden = !has; empty.hidden = has;
     if (!has) return;
     const names = String(d.series_names || '').split(',').map(s => s.trim()).filter(Boolean);
-    renderPostChart(wrap, { chart_type: d.chart_type, labels: parsed.labels, series: parsed.series, rows: parsed.rows,
+    renderPostChart(wrap, { chart_type: d.chart_type, title: d.title, labels: parsed.labels, series: parsed.series, rows: parsed.rows,
                             series_names: names, color: d.color, options: d.options }, ACCENT_HEX, { animate: false });
   }
   function redrawAllCharts() {
@@ -373,12 +374,23 @@ const UPLOAD_URL = "{{ url_for('admin_upload') }}";
     });
   }
 
+  // Barra fina entre bloques: al pasar el mouse muestra "insertar acá".
+  const INS_HTML = '<div class="ins"><span class="ins-line"></span><span class="ins-btns"><span class="ins-lbl">insertar acá:</span>' +
+    [['heading', 'Sección'], ['paragraph', 'Párrafo'], ['callout', 'Destacado'], ['chart', 'Gráfico'], ['image', 'Imagen']]
+      .map(([t, l]) => `<button type="button" data-add="${t}">+ ${l}</button>`).join('') + '</span></div>';
+  function insertBar(at) {
+    const bar = el(INS_HTML);
+    bar.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => addBlock(btn.dataset.add, at)));
+    return bar;
+  }
+
   function renderAll() {
     if (window.Chart && Chart.getChart) container.querySelectorAll('canvas').forEach(c => { const ch = Chart.getChart(c); if (ch) ch.destroy(); });
     container.innerHTML = '';
     if (!state.blocks.length) container.appendChild(el('<p class="editor-empty">El post está vacío: agregá el primer bloque con los botones de acá abajo.</p>'));
     let h = 0;
-    state.blocks.forEach(b => {
+    state.blocks.forEach((b, i) => {
+      container.appendChild(insertBar(i));
       const node = RENDER[b.type](b, b.type === 'heading' ? roman(h++) : null);
       container.appendChild(node);
       if (b.type === 'chart') drawChart(node, b.data);
@@ -386,17 +398,19 @@ const UPLOAD_URL = "{{ url_for('admin_upload') }}";
     growAll(container);
   }
 
-  document.querySelectorAll('.add-bar button').forEach(btn => btn.addEventListener('click', () => {
-    const type = btn.dataset.add;
+  // Agrega un bloque nuevo en la posición "at" (o al final) y lo enfoca.
+  function addBlock(type, at) {
     const b = { uid: uid(), type, data: DEFAULTS[type]() };
-    state.blocks.push(b); dirty(); renderAll();
+    if (at === undefined || at >= state.blocks.length) state.blocks.push(b); else state.blocks.splice(at, 0, b);
+    dirty(); renderAll();
     const n = container.querySelector(`[data-uid="${b.uid}"]`);
     if (n) {
       n.scrollIntoView({ block: 'center', behavior: 'smooth' });
       const f = n.querySelector('.ed');
       if (f) f.focus();
     }
-  }));
+  }
+  document.querySelectorAll('.add-bar button').forEach(btn => btn.addEventListener('click', () => addBlock(btn.dataset.add)));
 
   // ---- guardar / publicar -------------------------------------------------
   async function save() {

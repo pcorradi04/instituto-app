@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moderación — Instituto de Energía</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+<body class="admin">
+<div class="login-box" style="max-width:520px;">
+  {% if result == 'approved' %}
+    <h1>Comentario aprobado</h1>
+    <p>El comentario de <b>{{ comment['name'] }}</b> ya se ve en el post.</p>
+  {% elif result == 'deleted' %}
+    <h1>Comentario borrado</h1>
+    <p>El comentario de <b>{{ comment['name'] }}</b> se eliminó (y sus respuestas, si tenía).</p>
+  {% else %}
+    <h1>Ese comentario ya no existe</h1>
+    <p>Probablemente ya fue borrado desde otro link o desde el panel.</p>
+  {% endif %}
+  {% if comment and result != 'deleted' %}
+    <p><a href="{{ url_for('show_post', slug=comment['post_slug']) }}#c{{ comment['id'] }}">Ver el post: {{ comment['post_title'] }}</a></p>
+  {% endif %}
+  <p><a href="{{ url_for('admin_comments') }}">Ir al panel de comentarios</a></p>
+</div>
+</body>
+</html>

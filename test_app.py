@@ -31,6 +31,10 @@ app = appmod.app
 app.config["TESTING"] = True
 PW = "clave-de-test"
 
+# Los mails de aviso no se mandan: se capturan acá para revisarlos.
+SENT = []
+appmod.send_email_async = lambda subject, body: SENT.append((subject, body))
+
 c = app.test_client()       # sesión de administrador
 anon = app.test_client()    # visitante sin login
 fails = 0
@@ -136,6 +140,8 @@ r = save({**GENERAL, "blocks": [
                                "series_names": "Energía, INDEC", "options": {"diagonal": "si", "Clave Rara!": "x", "y_title": None, "unit": ""}}},
     {"type": "chart", "data": {"chart_type": "sankey", "table": "Gas 2025 | Chile | 340.8\nGas 2025 | Uruguay | 5.1"}},
     {"type": "chart", "data": {"chart_type": "inexistente", "table": "a | 1"}},
+    {"type": "chart", "data": {"chart_type": "line", "title": "Vacío", "table": ""}},
+    {"type": "image", "data": {"url": "", "caption": "sin imagen"}},
 ]})
 bl = blocks()
 ok(r.status_code == 200 and bl[0]["data"]["rows"] == [["Crudo", "959.1", "1172"], ["Gas", "30.4", "52"]],
@@ -147,6 +153,10 @@ ok(bl[2]["data"]["chart_type"] == "bar_comparison", "tipo de gráfico desconocid
 html = text(c.get("/post/" + slug))
 ok('"chart_type": "scatter"' in html and '"rows": [["Crudo", "959.1", "1172"]' in html and '"diagonal": "si"' in html,
    "el post recibe tipo, filas y opciones para charts.js")
+ok(html.count('class="chart-wrap"') == 3 and "sin datos: no se muestra a los lectores" in html
+   and 'src=""' not in html, "gráfico sin datos e imagen sin URL: no dejan cuadros vacíos (el admin ve un aviso)")
+ok('data-mode="copy"' in html and 'data-mode="download"' in html and 'data-filename="grafico"' in html,
+   "cada tarjeta de gráfico tiene botones de copiar y descargar PNG")
 ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
 ok('"table": "Gas 2025 | Chile | 340.8\\nGas 2025 | Uruguay | 5.1"' in ehtml, "editor: la tabla del Sankey vuelve con su columna de texto")
 save({**GENERAL, "blocks": BLOCKS})
@@ -204,6 +214,13 @@ r = c.post(f"/admin/posts/{pid}/publish", data={"next": f"/admin/posts/{pid}/edi
 ok(r.status_code == 302 and r.headers["Location"].endswith(f"/admin/posts/{pid}/edit"), "publicar desde el editor vuelve al editor")
 r = anon.get("/post/" + slug)
 ok(r.status_code == 200 and "BORRADOR" not in text(r), "visible públicamente")
+ok(db_row("SELECT post_number FROM posts WHERE id=?", pid)["post_number"] == 1 and "N.º 1 · Prueba" in text(r),
+   "primera publicación: recibe el N.º 1 y se muestra con la etiqueta")
+ok("N.º 1" in text(anon.get("/")), "la portada muestra el número de cada post")
+save({**GENERAL, "author": "", "blocks": BLOCKS})
+ok('class="byline">Publicado el ' in text(anon.get("/post/" + slug)), "sin autor: 'Publicado el fecha', sin repetir el nombre del Instituto")
+save({**GENERAL, "blocks": BLOCKS})
+ok(anon.get("/favicon.ico").status_code == 302 and 'rel="icon"' in text(anon.get("/")), "favicon: ícono de la pestaña")
 save({**GENERAL, "title": "Título cambiado después de publicar", "blocks": BLOCKS})
 ok(db_row("SELECT slug FROM posts WHERE id=?", pid)["slug"] == "titulo-editado", "ya publicado: el slug se congela aunque cambie el título")
 ok("Título cambiado" in text(anon.get("/?q=cambiado")), "búsqueda por título")
@@ -250,19 +267,37 @@ anon.post(curl, data={"name": "Ana", "body": "tercero tercero tercero"})
 r = anon.post(curl, data={"name": "Ana", "body": "cuarto cuarto cuarto"}, follow_redirects=True)
 ok("Esperá unos minutos" in text(r) and db_row("SELECT COUNT(*) AS c FROM comments WHERE body LIKE 'cuarto%'")["c"] == 0,
    "más de 3 comentarios en 10 minutos desde la misma IP: rechazado")
+# aviso por mail con links de moderación (sin login)
+mail = [m for m in SENT if "tercero tercero" in m[1]]
+ok(len(mail) == 1 and "Comentario de Ana" in mail[0][0] and "Aprobar:" in mail[0][1] and "Borrar:" in mail[0][1] and "/moderar/" in mail[0][1],
+   "aviso por mail: asunto con el nombre, cuerpo con el comentario y links para aprobar o borrar")
+ok(len([m for m in SENT if "la semana que viene" in m[1]]) == 0, "las respuestas del equipo no generan aviso")
+from urllib.parse import urlparse  # noqa: E402
+approve_path = urlparse(re.search(r"Aprobar:\s+(\S+)", mail[0][1]).group(1)).path
+delete_path = urlparse(re.search(r"Borrar:\s+(\S+)", mail[0][1]).group(1)).path
+r = app.test_client().get(approve_path)
+ok(r.status_code == 200 and "Comentario aprobado" in text(r)
+   and db_row("SELECT status FROM comments WHERE body LIKE 'tercero%'")["status"] == "approved", "link del mail: aprueba sin estar logueado")
+r = app.test_client().get(delete_path)
+ok(r.status_code == 200 and "Comentario borrado" in text(r) and db_row("SELECT COUNT(*) AS c FROM comments WHERE body LIKE 'tercero%'")["c"] == 0,
+   "link del mail: borra sin estar logueado")
+ok(app.test_client().get(delete_path).status_code == 404, "link ya usado sobre un comentario borrado: 'ya no existe'")
+ok(anon.get("/moderar/token-falso.abc").status_code == 404, "token inventado: 404")
 c.post(f"/admin/comentarios/{cid}/borrar", data={"next": "/admin/comentarios"})
 ok(db_row("SELECT COUNT(*) AS c FROM comments WHERE id=? OR parent_id=?", cid, cid)["c"] == 0, "borrar un comentario borra también sus respuestas")
 
 r = c.post(f"/admin/posts/{pid}/publish", data={"next": "https://evil.com"})
 ok(r.headers["Location"].endswith("/admin/"), "despublicar con next externo -> dashboard")
 ok(anon.post(curl, data={"name": "Ana", "body": "hola hola hola"}).status_code == 404, "no se puede comentar un post despublicado")
-p2 = db_row("SELECT status, published_at FROM posts WHERE id=?", pid)
-ok(p2["status"] == "draft" and p2["published_at"], "despublicado conserva la fecha original")
+p2 = db_row("SELECT status, published_at, post_number FROM posts WHERE id=?", pid)
+ok(p2["status"] == "draft" and p2["published_at"] and p2["post_number"] == 1, "despublicado conserva la fecha original y el número")
 
 # --- slug duplicado, borrar, 404s, logout --------------------------------
 r = c.post("/admin/posts", data={"title": "Título editado"})
 pid2 = int(re.search(r"/(\d+)/edit", r.headers["Location"]).group(1))
 ok(db_row("SELECT slug FROM posts WHERE id=?", pid2)["slug"] == "titulo-editado-2", "slug duplicado -> sufijo -2")
+c.post(f"/admin/posts/{pid2}/publish")
+ok(db_row("SELECT post_number FROM posts WHERE id=?", pid2)["post_number"] == 2, "el segundo post publicado recibe el N.º 2")
 c.post(f"/admin/posts/{pid}/delete")
 ok(db_row("SELECT count(*) c FROM blocks WHERE post_id=?", pid)["c"] == 0, "borrar post borra sus bloques")
 ok(db_row("SELECT count(*) c FROM comments WHERE post_id=?", pid)["c"] == 0, "borrar post borra sus comentarios")

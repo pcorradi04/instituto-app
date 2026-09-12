@@ -7,9 +7,11 @@
 {% block content %}
 
 <div class="hero">
-  <div class="eyebrow">{{ post['eyebrow'] or 'Instituto de Energía' }}</div>
+  {% if post['post_number'] or post['eyebrow'] %}
+  <div class="eyebrow">{% if post['post_number'] %}N.º {{ post['post_number'] }}{% if post['eyebrow'] %} · {% endif %}{% endif %}{{ post['eyebrow'] }}</div>
+  {% endif %}
   <h1>{{ post['title'] }}</h1>
-  <div class="byline">Por {{ post['author'] or 'Instituto de Energía' }}{% if post['published_at'] %} · {{ post['published_at'] | fecha_es }}{% endif %}</div>
+  <div class="byline">{% if post['author'] %}Por {{ post['author'] }}{% if post['published_at'] %} · {{ post['published_at'] | fecha_es }}{% endif %}{% elif post['published_at'] %}Publicado el {{ post['published_at'] | fecha_es }}{% else %}Borrador{% endif %}</div>
   {% if post['dek'] %}<p class="lede">{{ post['dek'] }}</p>{% endif %}
   {% if post['status'] == 'draft' %}<p class="lede" style="color:#A63D2F; font-weight:bold;">[BORRADOR — no visible públicamente]</p>{% endif %}
 </div>
@@ -19,7 +21,7 @@
 
   {% for b in blocks %}
     {% if b.type == 'heading' %}
-      <div class="section-marker"><span class="num">{{ b.roman }}</span><span class="tag">{{ b.data.tag }}</span></div>
+      <div class="section-marker"><span class="num">{{ b.roman }}</span>{% if b.data.tag %}<span class="tag">{{ b.data.tag }}</span>{% endif %}</div>
       <h2>{{ b.data.title }}</h2>
 
     {% elif b.type == 'paragraph' %}
@@ -28,19 +30,25 @@
     {% elif b.type == 'callout' %}
       <div class="callout {{ 'navy' if b.data.color=='navy' else ('maroon' if b.data.color in ['maroon','rust'] else '') }}">{{ b.html | safe }}</div>
 
-    {% elif b.type == 'image' %}
+    {% elif b.type == 'image' and b.data.url %}
       <div class="chart-card">
         <img src="{{ b.data.url }}" alt="{{ b.data.caption }}" style="width:100%; height:auto; display:block;">
         {% if b.data.caption %}<div class="chart-source">{{ b.data.caption }}</div>{% endif %}
       </div>
 
-    {% elif b.type == 'chart' %}
-      <div class="chart-card">
+    {% elif b.type == 'chart' and (b.data.rows or b.data.labels) %}
+      <div class="chart-card" data-filename="{{ (b.data.title or 'grafico') | slug }}">
         {% if b.data.title %}<h3>{{ b.data.title }}</h3>{% endif %}
         {% if b.data.subtitle %}<div class="sub">{{ b.data.subtitle }}</div>{% endif %}
         <div class="chart-wrap" id="chart-{{ b.id }}"></div>
-        {% if b.data.source %}<div class="chart-source">Fuente: {{ b.data.source }}</div>{% endif %}
+        <div class="chart-foot">
+          <div class="chart-source">{% if b.data.source %}Fuente: {{ b.data.source }}{% endif %}</div>
+          <div class="chart-tools"><button type="button" data-mode="copy" title="Copiar el gráfico como imagen al portapapeles">Copiar PNG</button><button type="button" data-mode="download" title="Descargar el gráfico como imagen">Descargar PNG</button></div>
+        </div>
       </div>
+
+    {% elif (b.type == 'chart' or b.type == 'image') and session.get('is_admin') %}
+      <p class="comments-intro" style="font-style:italic;">[{{ 'Gráfico' if b.type == 'chart' else 'Imagen' }} sin datos: no se muestra a los lectores. Cargalo o borralo desde el editor.]</p>
     {% endif %}
   {% endfor %}
 
@@ -136,6 +144,21 @@ window.addEventListener('resize', () => {
     if (el && spec && spec.kind !== 'canvas') renderPostChart(el, def, ACCENT_HEX, { animate: false });
   }), 200);
 });
+
+// Copiar / descargar cada gráfico como imagen PNG (la tarjeta entera:
+// título, gráfico, fuente y marca de agua).
+document.querySelectorAll('.chart-tools button').forEach(btn => btn.addEventListener('click', async () => {
+  const card = btn.closest('.chart-card');
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generando…';
+  try {
+    const r = await chartCardToPng(card, btn.dataset.mode);
+    btn.textContent = r === 'copied' ? '¡Copiado!' : 'Descargado';
+  } catch (e) {
+    btn.textContent = 'No se pudo';
+  }
+  setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 2200);
+}));
 
 // Compartir: links armados con la dirección real de esta página (sin rastreo).
 (function () {

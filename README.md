@@ -60,8 +60,10 @@ python test_app.py
 3. El editor **es el post**: ves la misma página que van a ver los lectores,
    con el mismo diseño, pero vacía. Hacés click en cualquier texto
    (etiqueta, título, copete) y escribís ahí mismo.
-4. Con los botones de abajo de todo ("+ Agregar") sumás bloques, que
-   aparecen en el lugar exacto donde van a quedar:
+4. Con los botones de abajo de todo ("+ Agregar") sumás bloques al final.
+   Para meter uno **entre** dos bloques que ya están, pasá el mouse por la
+   línea que los separa: aparece "insertar acá" con los cinco tipos. Los
+   bloques aparecen en el lugar exacto donde van a quedar:
    - **Título de sección**: se numera solo con números romanos (I, II, III...).
    - **Párrafo**: texto corrido. Línea en blanco = párrafo nuevo. Seleccioná
      texto y tocá **B** o **I** (aparecen al pasar el mouse) para negrita o
@@ -83,7 +85,11 @@ python test_app.py
      derecho), áreas apiladas, ranking en el tiempo (bump), mapa de calor,
      cascada, pronóstico con bandas (fan), barras apiladas, barras 100 %,
      treemap, Sankey, mapa esquemático por zona, caja y bigotes, bullet y
-     velocímetro. El gráfico se dibuja arriba mientras escribís.
+     velocímetro. El gráfico se dibuja arriba mientras escribís. Los de
+     Chart.js tienen una opción "Alto del gráfico (px)" por si el
+     estándar queda chico o grande. En el post, cada gráfico tiene botones
+     "Copiar PNG" y "Descargar PNG" para llevárselo como imagen (tarjeta
+     completa: título, gráfico, fuente y marca de agua).
    - **Imagen**: hacés click en el recuadro y elegís un archivo (PNG, JPG,
      GIF o WebP, hasta 10 MB), o lo arrastrás, o pegás una URL; más un
      epígrafe. Las subidas quedan en `instance/uploads/`.
@@ -121,6 +127,15 @@ no hace falta registrarse.
   comentarios cada 10 minutos por dirección de internet.
 - Borrar un comentario borra sus respuestas. Borrar un post borra sus
   comentarios.
+- **Aviso por mail** (opcional): si configurás una cuenta de Gmail en el
+  `.env` (ver `DEPLOY.md`, sección 5b), cada comentario nuevo llega por
+  mail con dos links, "Aprobar" y "Borrar", que funcionan sin entrar al
+  panel. Los links llevan una firma criptográfica, así que solo sirven
+  para ese comentario y esa acción.
+
+Cada post publicado recibe un **número correlativo** (N.º 1, N.º 2...) la
+primera vez que se publica; no cambia aunque se despublique y se vuelva a
+publicar. Se ve en la portada y arriba del título.
 
 Además, cada post muestra autor y fecha debajo del título (el autor se
 carga en el editor, en la línea "Por ...") y botones para compartir en X,
