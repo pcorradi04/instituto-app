@@ -96,7 +96,6 @@
 <div class="comment{{ ' reply' if is_reply }}{{ ' pending' if c.status == 'pending' }}{{ ' staff' if c.is_staff }}" id="c{{ c.id }}">
   <div class="comment-head">
     <b>{{ c.name }}</b>
-    {% if c.is_staff %}<span class="badge">Equipo del Instituto</span>{% endif %}
     <span class="date">{{ c.created_at | fecha_es(true) }}</span>
     {% if c.status == 'pending' %}<span class="badge pending">Pendiente de aprobación</span>{% endif %}
   </div>
@@ -120,7 +119,7 @@
 
 <section class="comments" id="comentarios">
   <h2>Comentarios <span class="count">{{ n_comments }}</span></h2>
-  <p class="comments-intro">Este espacio es para discutir lo que plantea el post. Los comentarios se publican después de que el equipo del Instituto los revisa.</p>
+  <p class="comments-intro">Este espacio es para discutir lo que plantea el post. {% if moderation == 'pre' %}Los comentarios se publican después de que el equipo del Instituto los revisa.{% else %}Los comentarios se publican al instante; el equipo del Instituto puede borrar los que sean ofensivos o estén fuera de tema.{% endif %}</p>
 
   {% with messages = get_flashed_messages(with_categories=true, category_filter=['comment-ok', 'comment-error']) %}
     {% for category, msg in messages %}
@@ -138,7 +137,7 @@
       <input type="hidden" name="parent_id" id="parent_id" value="">
       <div class="replying" id="replying" hidden>Respondiendo a <b id="replying-name"></b> · <button type="button" class="linklike" id="cancel-reply">cancelar</button></div>
       {% if session.get('is_admin') %}
-        <p class="comments-intro">Estás logueado: lo que escribas se publica al instante, firmado como <b>{{ staff_name }}</b>.</p>
+        <p class="comments-intro">Estás con la sesión del panel abierta en este navegador: lo que escribas acá se publica firmado como <b>{{ staff_name }}</b>. Para comentar con tu nombre, <a href="{{ url_for('admin_logout') }}">cerrá la sesión</a> o usá una ventana de incógnito.</p>
       {% else %}
         <div class="row">
           <label>Nombre<input type="text" name="name" required maxlength="60" value="{{ commenter_name }}"></label>

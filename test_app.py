@@ -260,63 +260,77 @@ ok(db_row("SELECT slug FROM posts WHERE id=?", pid)["slug"] == "titulo-editado",
 ok("Título cambiado" in text(anon.get("/?q=cambiado")), "búsqueda por título")
 ok("No encontramos" in text(anon.get("/?q=zzzz")), "búsqueda sin resultados")
 ok('style="--accent:#1F4E5F"' in text(anon.get("/")), "la portada pinta cada post con su acento")
-# --- comentarios ----------------------------------------------------------
+# --- comentarios (modo por defecto: se publican al instante) --------------
+from urllib.parse import urlparse  # noqa: E402
 curl = "/post/" + slug + "/comentar"
 html = text(anon.get("/post/" + slug))
 ok('id="comentarios"' in html and 'name="website"' in html and "Compartir:" in html and "Por Autor de prueba" in html
-   and " de 2026" in html, "post publicado: sección de comentarios, campo trampa, compartir, firma de autor y fecha en español")
+   and " de 2026" in html and "se publican al instante" in html,
+   "post publicado: sección de comentarios, campo trampa, compartir, firma de autor, fecha en español y aviso de moderación posterior")
 r = anon.post(curl, data={"name": "Ana", "body": "Muy buen análisis, ¿tienen los datos por cuenca?", "website": ""}, follow_redirects=True)
-ok("se va a publicar cuando lo revise" in text(r), "comentario enviado: mensaje de gracias en la sección de comentarios")
-ok(db_row("SELECT status, is_staff FROM comments WHERE name='Ana'")["status"] == "pending", "queda pendiente de aprobación")
-ok("Muy buen análisis" not in text(app.test_client().get("/post/" + slug)), "pendiente: no se ve para el público")
-ahtml = text(c.get("/post/" + slug))
-ok("Muy buen análisis" in ahtml and "Pendiente de aprobación" in ahtml and "Aprobar" in ahtml, "pendiente: el admin lo ve marcado en el post, con botón Aprobar")
+ok("ya está publicado" in text(r), "comentario enviado: mensaje de gracias")
+ok(db_row("SELECT status FROM comments WHERE name='Ana'")["status"] == "approved", "queda publicado al instante (moderación posterior)")
+ok("Muy buen análisis" in text(app.test_client().get("/post/" + slug)), "se ve para el público sin pasar por el panel")
+ok(len(SENT) == 1 and "Nuevo comentario de Ana" in SENT[0][0] and "Borrar:" in SENT[0][1] and "Aprobar:" not in SENT[0][1],
+   "aviso por mail: nuevo comentario con link para borrar (sin 'aprobar': ya está publicado)")
 anon.post(curl, data={"name": "Bot", "body": "compra esto ahora mismo", "website": "http://spam"})
 ok(db_row("SELECT COUNT(*) AS c FROM comments WHERE name='Bot'")["c"] == 0, "campo trampa lleno: se descarta en silencio")
 r = anon.post(curl, data={"name": "A", "body": "hola"}, follow_redirects=True)
 ok("muy corto" in text(r) and db_row("SELECT COUNT(*) AS c FROM comments")["c"] == 1, "nombre o comentario muy cortos: rechazado con aviso")
 ok(anon.post("/post/no-existe/comentar", data={"name": "Ana", "body": "hola hola"}).status_code == 404, "comentar en post inexistente -> 404")
-dhtml = text(c.get("/admin/"))
-ok("1 comentario pendiente" in dhtml and "Comentarios (1)" in dhtml, "dashboard: aviso de comentarios pendientes")
-lhtml = text(c.get("/admin/comentarios"))
-ok("Ana" in lhtml and "Aprobar" in lhtml and "Título cambiado" in lhtml, "lista de comentarios en el panel, con el post al que pertenecen")
-ok(anon.get("/admin/comentarios").status_code == 302, "lista de comentarios requiere login")
-cid = db_row("SELECT id FROM comments WHERE name='Ana'")["id"]
-r = c.post(f"/admin/comentarios/{cid}/aprobar", data={"next": f"/post/{slug}#c{cid}"})
-ok(r.status_code == 302 and r.headers["Location"].endswith(f"/post/{slug}#c{cid}")
-   and db_row("SELECT status FROM comments WHERE id=?", cid)["status"] == "approved", "aprobar desde el post vuelve al post y publica el comentario")
-ok("Muy buen análisis" in text(app.test_client().get("/post/" + slug)), "aprobado: se ve para el público")
 ok("1 comentario" in text(anon.get("/")), "la portada muestra la cantidad de comentarios del post")
+lhtml = text(c.get("/admin/comentarios"))
+ok("Ana" in lhtml and "Título cambiado" in lhtml and "Borrar" in lhtml, "lista de comentarios en el panel, con el post al que pertenecen")
+ok(anon.get("/admin/comentarios").status_code == 302, "lista de comentarios requiere login")
+ok("pendiente" not in text(c.get("/admin/")), "dashboard: sin aviso de pendientes en moderación posterior")
+cid = db_row("SELECT id FROM comments WHERE name='Ana'")["id"]
 r = c.post(curl, data={"body": "Sí, los publicamos la semana que viene.", "parent_id": str(cid)}, follow_redirects=True)
 staff = db_row("SELECT * FROM comments WHERE is_staff=1")
 ok(staff is not None and staff["status"] == "approved" and staff["parent_id"] == cid and staff["name"] == appmod.STAFF_NAME,
-   "respuesta del equipo (logueado): aprobada al instante, firmada y colgada del comentario")
+   "respuesta del equipo (logueado): firmada 'Instituto de Energía' y colgada del comentario")
 phtml = text(app.test_client().get("/post/" + slug))
-ok("Equipo del Instituto" in phtml and phtml.index("Muy buen análisis") < phtml.index("la semana que viene"),
-   "la respuesta se ve debajo del comentario original")
+ok("Equipo del Instituto" not in phtml and 'class="comment reply staff"' in phtml and ".comment.staff" not in text(anon.get("/static/style.css"))
+   and phtml.index("Muy buen análisis") < phtml.index("la semana que viene"),
+   "la respuesta se ve debajo del original, como un comentario más (sin cajita ni distintivo)")
+ok("cerrá la sesión" in text(c.get("/post/" + slug)), "logueado: el formulario avisa que firma como el Instituto y ofrece cerrar la sesión")
+ok(len([m for m in SENT if "la semana que viene" in m[1]]) == 0, "las respuestas del equipo no generan aviso")
 anon.post(curl, data={"name": "Ana", "body": "Gracias, quedo atenta.", "parent_id": str(staff["id"])})
 ok(db_row("SELECT parent_id FROM comments WHERE body LIKE 'Gracias, quedo%'")["parent_id"] == cid,
    "responder a una respuesta cuelga del comentario original (un solo nivel)")
-anon.post(curl, data={"name": "Ana", "body": "tercero tercero tercero"})
-r = anon.post(curl, data={"name": "Ana", "body": "cuarto cuarto cuarto"}, follow_redirects=True)
-ok("Esperá unos minutos" in text(r) and db_row("SELECT COUNT(*) AS c FROM comments WHERE body LIKE 'cuarto%'")["c"] == 0,
-   "más de 3 comentarios en 10 minutos desde la misma IP: rechazado")
-# aviso por mail con links de moderación (sin login)
-mail = [m for m in SENT if "tercero tercero" in m[1]]
-ok(len(mail) == 1 and "Comentario de Ana" in mail[0][0] and "Aprobar:" in mail[0][1] and "Borrar:" in mail[0][1] and "/moderar/" in mail[0][1],
-   "aviso por mail: asunto con el nombre, cuerpo con el comentario y links para aprobar o borrar")
-ok(len([m for m in SENT if "la semana que viene" in m[1]]) == 0, "las respuestas del equipo no generan aviso")
-from urllib.parse import urlparse  # noqa: E402
-approve_path = urlparse(re.search(r"Aprobar:\s+(\S+)", mail[0][1]).group(1)).path
-delete_path = urlparse(re.search(r"Borrar:\s+(\S+)", mail[0][1]).group(1)).path
-r = app.test_client().get(approve_path)
-ok(r.status_code == 200 and "Comentario aprobado" in text(r)
-   and db_row("SELECT status FROM comments WHERE body LIKE 'tercero%'")["status"] == "approved", "link del mail: aprueba sin estar logueado")
+for i in range(13):   # ya van 2 de Ana desde esta IP; el límite es 15 cada 10 minutos
+    anon.post(curl, data={"name": "Ana", "body": f"comentario número {i} de prueba"})
+r = anon.post(curl, data={"name": "Ana", "body": "este ya es demasiado"}, follow_redirects=True)
+ok("Esperá unos minutos" in text(r) and db_row("SELECT COUNT(*) AS c FROM comments WHERE body LIKE 'este ya es%'")["c"] == 0,
+   "más de 15 comentarios en 10 minutos desde la misma IP: rechazado")
+ok(db_row("SELECT COUNT(*) AS c FROM comments WHERE ip = '127.0.0.1' AND is_staff = 0")["c"] == 15, "los 15 anteriores sí entraron")
+mail = [m for m in SENT if "comentario número 5 de" in m[1]][0]
+delete_path = urlparse(re.search(r"Borrar:\s+(\S+)", mail[1]).group(1)).path
 r = app.test_client().get(delete_path)
-ok(r.status_code == 200 and "Comentario borrado" in text(r) and db_row("SELECT COUNT(*) AS c FROM comments WHERE body LIKE 'tercero%'")["c"] == 0,
+ok(r.status_code == 200 and "Comentario borrado" in text(r) and db_row("SELECT COUNT(*) AS c FROM comments WHERE body LIKE '%número 5 de%'")["c"] == 0,
    "link del mail: borra sin estar logueado")
 ok(app.test_client().get(delete_path).status_code == 404, "link ya usado sobre un comentario borrado: 'ya no existe'")
 ok(anon.get("/moderar/token-falso.abc").status_code == 404, "token inventado: 404")
+# --- modo de moderación previa (COMMENTS_MODERATION=pre) -------------------
+appmod.COMMENTS_MODERATION = "pre"
+db.execute("DELETE FROM comments WHERE is_staff = 0 AND body LIKE 'comentario número%'")
+db.commit()
+r = anon.post(curl, data={"name": "Luz", "body": "Comentario en modo previo."}, follow_redirects=True)
+ok("cuando lo revise" in text(r) and db_row("SELECT status FROM comments WHERE name='Luz'")["status"] == "pending", "modo previo: queda pendiente y avisa")
+ok("Comentario en modo previo" not in text(app.test_client().get("/post/" + slug)), "modo previo: no se ve para el público")
+ahtml = text(c.get("/post/" + slug))
+ok("Comentario en modo previo" in ahtml and "Pendiente de aprobación" in ahtml and "Aprobar" in ahtml,
+   "modo previo: el admin lo ve marcado en el post, con botón Aprobar")
+ok("1 comentario pendiente" in text(c.get("/admin/")) and "Comentarios (1)" in text(c.get("/admin/")), "modo previo: aviso de pendientes en el dashboard")
+mail = [m for m in SENT if "modo previo" in m[1]][0]
+ok("para aprobar" in mail[0] and "Aprobar:" in mail[1], "modo previo: el mail trae el link de aprobar")
+approve_path = urlparse(re.search(r"Aprobar:\s+(\S+)", mail[1]).group(1)).path
+r = app.test_client().get(approve_path)
+ok(r.status_code == 200 and "Comentario aprobado" in text(r) and db_row("SELECT status FROM comments WHERE name='Luz'")["status"] == "approved",
+   "link del mail: aprueba sin estar logueado")
+luz = db_row("SELECT id FROM comments WHERE name='Luz'")["id"]
+r = c.post(f"/admin/comentarios/{luz}/aprobar", data={"next": f"/post/{slug}#c{luz}"})
+ok(r.status_code == 302 and r.headers["Location"].endswith(f"/post/{slug}#c{luz}"), "aprobar desde el post vuelve al post")
+appmod.COMMENTS_MODERATION = "post"
 c.post(f"/admin/comentarios/{cid}/borrar", data={"next": "/admin/comentarios"})
 ok(db_row("SELECT COUNT(*) AS c FROM comments WHERE id=? OR parent_id=?", cid, cid)["c"] == 0, "borrar un comentario borra también sus respuestas")
 

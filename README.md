@@ -118,20 +118,27 @@ Cada post publicado tiene al pie una sección de comentarios. Cualquier
 lector puede comentar con nombre y, opcionalmente, mail (no se publica);
 no hace falta registrarse.
 
-- **Moderación previa**: los comentarios nuevos quedan pendientes y no se
-  ven hasta que alguien del equipo los aprueba. Al entrar al panel aparece
-  un aviso amarillo con la cantidad de pendientes; el link "Comentarios"
-  de arriba lista todos.
-- **Aprobar, borrar y responder desde el post mismo**: si estás logueado y
-  abrís un post, ves los pendientes marcados en amarillo con botones
-  "Aprobar" y "Borrar", y lo que escribas en el formulario se publica al
-  instante firmado como "Instituto de Energía" (destacado en el hilo).
+- **Moderación posterior** (la opción por defecto): los comentarios se
+  publican al instante y el equipo borra los que no corresponden. Si
+  prefieren revisar antes de publicar, en el `.env` se pone
+  `COMMENTS_MODERATION=pre` y se reinicia: ahí los comentarios quedan
+  pendientes, el panel muestra un aviso amarillo con la cantidad, y se
+  aprueban desde el panel, desde el post o desde el mail.
+- **Borrar y responder desde el post mismo**: si estás logueado y abrís un
+  post, cada comentario tiene un botón "Borrar", y lo que escribas en el
+  formulario se publica firmado como "Instituto de Energía". Ojo: **la
+  sesión del panel es del navegador**, no de un mail. Si entraste a
+  `/admin/login` en tu Chrome, todo lo que comentes desde ese Chrome sale
+  como el Instituto hasta que cierres la sesión (el formulario avisa y
+  tiene el link). Para comentar con tu nombre, cerrá la sesión o usá una
+  ventana de incógnito.
 - **Respuestas de un solo nivel**: se puede responder a un comentario, y
   las respuestas quedan debajo, indentadas. Responder a una respuesta la
   cuelga del comentario original, así el hilo no se vuelve un árbol.
 - **Anti-spam sin molestar al lector**: un campo invisible que solo llenan
-  los robots (si viene lleno, se descarta en silencio) y un máximo de 3
-  comentarios cada 10 minutos por dirección de internet.
+  los robots (si viene lleno, se descarta en silencio) y un máximo de 15
+  comentarios cada 10 minutos por dirección de internet (se cambia con
+  `COMMENT_LIMIT_PER_10MIN` en el `.env`).
 - Borrar un comentario borra sus respuestas. Borrar un post borra sus
   comentarios.
 - **Aviso por mail** (opcional): si configurás una cuenta de Gmail en el

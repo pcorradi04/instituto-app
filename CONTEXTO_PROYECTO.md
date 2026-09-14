@@ -444,6 +444,22 @@ entre turnos. Estado al cierre de esa ronda:
   porque `.chart-empty` y las filas `.row` (display:flex) ignoraban el
   atributo `hidden` y el "cuadrado vacío" se veía debajo del gráfico.
   Las flechas de los bloques ahora dicen "↑ subir / ↓ bajar / ✕ borrar".
+- **Comentarios, ajustes de Pedro (14 sep 2026)** tras probar el sitio
+  online desde el celular: (1) moderación **posterior** por defecto
+  (`COMMENTS_MODERATION=post`; los comentarios salen al instante y el
+  equipo borra; "pre" vuelve al modo pendiente/aprobar, que sigue
+  implementado y testeado). Nota: el profesor había pedido moderación
+  previa en el audio del 11 sep; Pedro lo cambió conscientemente, es una
+  llave del `.env`. (2) Los comentarios del Instituto se ven como
+  cualquier otro: sin la caja destacada ni la insignia "Equipo del
+  Instituto" (solo el nombre). (3) Límite anti-spam de 3 a 15 por IP cada
+  10 min (`COMMENT_LIMIT_PER_10MIN`): Pedro lo disparó probando desde su
+  celular. (4) Confusión resuelta: "¿cómo sabe mi compu que soy el
+  Instituto si no inicié sesión con ningún mail?" — la sesión del panel
+  (`/admin/login`, cookie) hace que los comentarios de ese navegador
+  salgan firmados como el Instituto; el formulario ahora lo dice y ofrece
+  "cerrá la sesión". El mail de aviso en modo "post" trae solo Borrar
+  (no Aprobar).
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

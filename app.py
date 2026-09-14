@@ -94,11 +94,16 @@ CHART_TYPES = [
 BLOCK_TYPES = ["heading", "paragraph", "callout", "chart", "figure", "image"]
 MAX_FIGURE_PANELS = 3
 
-# Comentarios de lectores. Se publican después de que alguien del equipo los
-# aprueba desde el panel (decisión del Instituto: empezar moderado y aflojar
-# después). Las respuestas del equipo llevan esta firma y salen al instante.
+# Comentarios de lectores. Las respuestas del equipo (logueado en el panel)
+# llevan esta firma y salen siempre al instante.
 STAFF_NAME = "Instituto de Energía"
-COMMENT_LIMIT_PER_10MIN = 3   # comentarios por dirección IP cada 10 minutos
+# Moderación: "post" = los comentarios se publican al instante y el equipo
+# borra lo que no corresponde (decisión de Pedro, sep 2026); "pre" = quedan
+# pendientes hasta que alguien los aprueba. Se cambia con la variable de
+# entorno COMMENTS_MODERATION en el .env, sin tocar código.
+COMMENTS_MODERATION = os.environ.get("COMMENTS_MODERATION", "post").strip().lower()
+# Anti-spam: comentarios por dirección IP cada 10 minutos (los del equipo no cuentan).
+COMMENT_LIMIT_PER_10MIN = int(os.environ.get("COMMENT_LIMIT_PER_10MIN", "15"))
 
 # Aviso por mail cuando llega un comentario (opcional). Con Gmail: crear una
 # "contraseña de aplicación" en la cuenta de Google y poner en el .env:
@@ -385,17 +390,21 @@ def site_url():
     return base
 
 
-def notify_new_comment(post, cid, name, email, body):
+def notify_new_comment(post, cid, name, email, body, pending):
     base = site_url()
     text = (
         f'Nuevo comentario en "{post["title"]}"\n\n'
         f"De: {name}" + (f" <{email}>" if email else "") + "\n\n"
         f"{body}\n\n"
-        f"Aprobar:  {base}{url_for('moderate_comment', token=moderation_token(cid, 'approve'))}\n"
+    )
+    if pending:
+        text += f"Aprobar:  {base}{url_for('moderate_comment', token=moderation_token(cid, 'approve'))}\n"
+    text += (
         f"Borrar:   {base}{url_for('moderate_comment', token=moderation_token(cid, 'delete'))}\n"
         f"Ver post: {base}{url_for('show_post', slug=post['slug'])}#c{cid}\n"
     )
-    send_email_async(f"[Blog Instituto de Energía] Comentario de {name} para aprobar", text)
+    subject = f"Comentario de {name} para aprobar" if pending else f"Nuevo comentario de {name}"
+    send_email_async(f"[Blog Instituto de Energía] {subject}", text)
 
 
 def parse_table(raw):
@@ -596,7 +605,7 @@ def show_post(slug):
         accent_hex=ACCENTS[accent]["hex"],
         accents_hex={k: v["hex"] for k, v in ACCENTS.items()},
         comments=comments, n_comments=n_comments, staff_name=STAFF_NAME,
-        commenter_name=session.get("commenter_name", ""),
+        commenter_name=session.get("commenter_name", ""), moderation=COMMENTS_MODERATION,
     )
 
 
@@ -637,19 +646,23 @@ def post_comment(slug):
         if parent and parent["parent_id"]:
             parent = db.execute("SELECT * FROM comments WHERE id = ?", (parent["parent_id"],)).fetchone()
     now = datetime.now(timezone.utc).isoformat()
+    pending = (COMMENTS_MODERATION == "pre") and not is_admin
     cur = db.execute(
         """INSERT INTO comments (post_id, parent_id, name, email, body, status, is_staff, ip, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (post["id"], parent["id"] if parent else None, name, email, body,
-         "approved" if is_admin else "pending", 1 if is_admin else 0, ip, now),
+         "pending" if pending else "approved", 1 if is_admin else 0, ip, now),
     )
     db.commit()
     if is_admin:
         flash("Respuesta publicada.", "comment-ok")
     else:
         session["commenter_name"] = name
-        flash("¡Gracias! Tu comentario se va a publicar cuando lo revise el equipo del Instituto.", "comment-ok")
-        notify_new_comment(post, cur.lastrowid, name, email, body)
+        if pending:
+            flash("¡Gracias! Tu comentario se va a publicar cuando lo revise el equipo del Instituto.", "comment-ok")
+        else:
+            flash("¡Gracias! Tu comentario ya está publicado.", "comment-ok")
+        notify_new_comment(post, cur.lastrowid, name, email, body, pending)
     return redirect(back)
 
 
