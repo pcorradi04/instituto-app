@@ -9,7 +9,7 @@
 <main>
 <header class="post-head">
   {% if post['post_number'] or post['eyebrow'] %}
-  <div class="eyebrow">{% if post['post_number'] %}N.º {{ post['post_number'] }}{% if post['eyebrow'] %} · {% endif %}{% endif %}{{ post['eyebrow'] }}</div>
+  <div class="section-marker post-marker">{% if post['post_number'] %}<span class="num">{{ post['post_number'] }}</span>{% endif %}{% if post['eyebrow'] %}<span class="tag">{{ post['eyebrow'] }}</span>{% endif %}</div>
   {% endif %}
   <h1>{{ post['title'] }}</h1>
   <div class="byline">{% if post['author'] %}Por {{ post['author'] }}{% if post['published_at'] %} · {{ post['published_at'] | fecha_es }}{% endif %}{% elif post['published_at'] %}Publicado el {{ post['published_at'] | fecha_es }}{% else %}Borrador{% endif %}</div>
@@ -119,7 +119,7 @@
 
 <section class="comments" id="comentarios">
   <h2>Comentarios <span class="count">{{ n_comments }}</span></h2>
-  <p class="comments-intro">Este espacio es para discutir lo que plantea el post. {% if moderation == 'pre' %}Los comentarios se publican después de que el equipo del Instituto los revisa.{% else %}Los comentarios se publican al instante; el equipo del Instituto puede borrar los que sean ofensivos o estén fuera de tema.{% endif %}</p>
+  <p class="comments-intro">Este espacio es para discutir lo que plantea el post. {% if moderation == 'pre' %}Los comentarios se publican después de que el equipo del Instituto los revisa.{% else %}Los comentarios se publican al instante; el equipo del Instituto puede borrar los que sean ofensivos o estén fuera de tema.{% if hold_links %} Podés incluir links: los comentarios que los traen pasan por una revisión rápida antes de publicarse.{% endif %}{% endif %}</p>
 
   {% with messages = get_flashed_messages(with_categories=true, category_filter=['comment-ok', 'comment-error']) %}
     {% for category, msg in messages %}

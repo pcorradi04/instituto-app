@@ -19,7 +19,7 @@
     {% for post in posts %}
     <a class="post-card" href="{{ url_for('show_post', slug=post['slug']) }}" style="--accent:{{ accents_hex.get(post['accent'], '#0000CC') }}">
       {% if post['post_number'] or post['eyebrow'] %}
-      <div class="eyebrow">{% if post['post_number'] %}N.º {{ post['post_number'] }}{% if post['eyebrow'] %} · {% endif %}{% endif %}{{ post['eyebrow'] }}</div>
+      <div class="section-marker card-marker">{% if post['post_number'] %}<span class="num">{{ post['post_number'] }}</span>{% endif %}{% if post['eyebrow'] %}<span class="tag">{{ post['eyebrow'] }}</span>{% endif %}</div>
       {% endif %}
       <h2>{{ post['title'] }}</h2>
       {% if post['dek'] %}<p class="dek">{{ post['dek'] }}</p>{% endif %}

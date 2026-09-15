@@ -46,7 +46,7 @@
 
 <main>
 <header class="post-head">
-  <div class="eyebrow">{% if post['post_number'] %}<span>N.º {{ post['post_number'] }} · </span>{% endif %}<input class="ed inline" id="fEyebrow" maxlength="80" placeholder="Etiqueta / categoría (ej: Comercio Exterior)"></div>
+  <div class="section-marker post-marker">{% if post['post_number'] %}<span class="num">{{ post['post_number'] }}</span>{% else %}<span class="num num-draft" title="El número se asigna al publicar">–</span>{% endif %}<span class="tag" style="flex:1"><input class="ed" id="fEyebrow" maxlength="80" placeholder="Etiqueta / categoría (ej: Comercio Exterior)"></span></div>
   <h1><textarea class="ed" id="fTitle" rows="1" placeholder="Título del post"></textarea></h1>
   <div class="byline">Por <input class="ed inline" id="fAuthor" maxlength="120" placeholder="Instituto de Energía (o el nombre de quien firma)"></div>
   <p class="lede"><textarea class="ed" id="fDek" rows="1" placeholder="Copete / resumen: dos o tres líneas que cuenten de qué va el post (opcional)."></textarea></p>

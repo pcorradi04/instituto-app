@@ -102,6 +102,9 @@ STAFF_NAME = "Instituto de Energía"
 # pendientes hasta que alguien los aprueba. Se cambia con la variable de
 # entorno COMMENTS_MODERATION en el .env, sin tocar código.
 COMMENTS_MODERATION = os.environ.get("COMMENTS_MODERATION", "post").strip().lower()
+# En modo "post", los comentarios que traen links igual quedan para
+# autorizar: es la forma clásica de frenar spam sin frenar la charla.
+COMMENTS_HOLD_LINKS = os.environ.get("COMMENTS_HOLD_LINKS", "1") == "1"
 # Anti-spam: comentarios por dirección IP cada 10 minutos (los del equipo no cuentan).
 COMMENT_LIMIT_PER_10MIN = int(os.environ.get("COMMENT_LIMIT_PER_10MIN", "15"))
 
@@ -269,9 +272,38 @@ def unique_slug(db, base, exclude_id=None):
     return candidate
 
 
-def render_richtext(text):
-    """Markdown minimo y seguro: **negrita**, *italica*, párrafos por linea en blanco."""
+URL_RE = re.compile(r'(?<![\w"=/])((?:https?://|www\.)[^\s<]+)')
+MD_LINK_RE = re.compile(r"\[([^\]\n]{1,200})\]\((https?://[^\s)<]+)\)")
+
+
+def has_link(text):
+    return bool(URL_RE.search(text or ""))
+
+
+def render_richtext(text, nofollow=False):
+    """Markdown mínimo y seguro: **negrita**, *itálica*, párrafos por línea en
+    blanco, y links: [texto](https://...) o una URL suelta, que se vuelve
+    clicable sola. Solo http(s) y www.; nunca javascript:. Los links de los
+    comentarios llevan rel=nofollow (no le dan reputación a un spammer)."""
     text = str(escape(text or ""))
+    rel = ' rel="nofollow noopener"' if nofollow else ' rel="noopener"'
+    text = MD_LINK_RE.sub(lambda m: f'<a href="{m.group(2)}" target="_blank"{rel}>{m.group(1)}</a>', text)
+
+    def autolink(m):
+        url, tail = m.group(1), ""
+        # La puntuación pegada al final (punto, coma, paréntesis, comillas
+        # escapadas) no es parte del link.
+        changed = True
+        while url and changed:
+            changed = False
+            for ent in ("&quot;", "&#39;"):
+                if url.endswith(ent):
+                    tail, url, changed = ent + tail, url[:-len(ent)], True
+            if url and url[-1] in ".,;:)!?":
+                tail, url, changed = url[-1] + tail, url[:-1], True
+        href = url if url.startswith("http") else "http://" + url
+        return f'<a href="{href}" target="_blank"{rel}>{url}</a>{tail}'
+    text = URL_RE.sub(autolink, text)
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
     text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", text)
     paras = [p.strip() for p in text.split("\n\n") if p.strip()]
@@ -319,7 +351,7 @@ def get_comments(db, post_id, include_pending=False):
     for r in rows:
         c = dict(r)
         c["replies"] = []
-        c["html"] = render_richtext(c["body"])
+        c["html"] = render_richtext(c["body"], nofollow=True)
         by_id[c["id"]] = c
     for c in by_id.values():
         if c["parent_id"]:
@@ -606,6 +638,7 @@ def show_post(slug):
         accents_hex={k: v["hex"] for k, v in ACCENTS.items()},
         comments=comments, n_comments=n_comments, staff_name=STAFF_NAME,
         commenter_name=session.get("commenter_name", ""), moderation=COMMENTS_MODERATION,
+        hold_links=COMMENTS_HOLD_LINKS,
     )
 
 
@@ -646,7 +679,8 @@ def post_comment(slug):
         if parent and parent["parent_id"]:
             parent = db.execute("SELECT * FROM comments WHERE id = ?", (parent["parent_id"],)).fetchone()
     now = datetime.now(timezone.utc).isoformat()
-    pending = (COMMENTS_MODERATION == "pre") and not is_admin
+    held_for_links = COMMENTS_MODERATION != "pre" and COMMENTS_HOLD_LINKS and has_link(body)
+    pending = (not is_admin) and (COMMENTS_MODERATION == "pre" or held_for_links)
     cur = db.execute(
         """INSERT INTO comments (post_id, parent_id, name, email, body, status, is_staff, ip, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -658,7 +692,10 @@ def post_comment(slug):
         flash("Respuesta publicada.", "comment-ok")
     else:
         session["commenter_name"] = name
-        if pending:
+        if pending and held_for_links:
+            flash("¡Gracias! Como tiene links, tu comentario se publica cuando lo revise el equipo del Instituto "
+                  "(es una medida contra el spam).", "comment-ok")
+        elif pending:
             flash("¡Gracias! Tu comentario se va a publicar cuando lo revise el equipo del Instituto.", "comment-ok")
         else:
             flash("¡Gracias! Tu comentario ya está publicado.", "comment-ok")

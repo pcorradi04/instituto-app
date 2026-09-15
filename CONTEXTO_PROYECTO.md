@@ -460,6 +460,21 @@ entre turnos. Estado al cierre de esa ronda:
   salgan firmados como el Instituto; el formulario ahora lo dice y ofrece
   "cerrá la sesión". El mail de aviso en modo "post" trae solo Borrar
   (no Aprobar).
+- **15 sep 2026**: (1) comentarios todos con el mismo fondo gris claro
+  (#F5F4F1, más claro que el beige), respuestas adentro y más claras;
+  formulario a ancho completo y textarea estirable. (2) Links:
+  `render_richtext` autolinkea URLs (http/https/www, puntuación final
+  afuera, entidades escapadas afuera) y acepta `[texto](https://...)`;
+  comentarios con `nofollow`; `has_link()`. `COMMENTS_HOLD_LINKS=1`: en
+  modo "post", un comentario con link queda pendiente (mensaje "Como tiene
+  links..."), respuesta a "quizás todo con la posibilidad de autorizar la
+  publicación". (3) El número del post se muestra en caja como los
+  numerales de sección (`.section-marker.post-marker` en el post y el
+  editor, `.card-marker` en la portada); en el editor un post sin número
+  muestra "–" gris. (4) Pedro mandó 4 logos grises oficiales (en
+  Downloads: `Logo Gris.png`, `logo gris invertido*.jpeg`, `logo gris
+  horizontal.jpeg`); la marca de agua se regeneró desde "logo gris
+  invertido" (gris sobre blanco → gris sobre transparente, 600 px).
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

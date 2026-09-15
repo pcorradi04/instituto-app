@@ -141,6 +141,12 @@ no hace falta registrarse.
   `COMMENT_LIMIT_PER_10MIN` en el `.env`).
 - Borrar un comentario borra sus respuestas. Borrar un post borra sus
   comentarios.
+- **Links**: en comentarios y en párrafos, una dirección escrita tal cual
+  (`https://...` o `www...`) se vuelve clicable sola, y también se puede
+  escribir `[texto](https://...)` para un link con texto. Los comentarios
+  que traen links quedan para autorizar aunque la moderación sea
+  posterior (así un robot no puede publicar propaganda; se apaga con
+  `COMMENTS_HOLD_LINKS=0`).
 - **Aviso por mail** (opcional): si configurás una cuenta de Gmail en el
   `.env` (ver `DEPLOY.md`, sección 5b), cada comentario nuevo llega por
   mail con dos links, "Aprobar" y "Borrar", que funcionan sin entrar al

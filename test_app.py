@@ -152,6 +152,7 @@ r = save({**GENERAL, "blocks": [
     {"type": "chart", "data": {"chart_type": "bar_comparison", "title": "Con nota", "note": "Nota al pie del gráfico simple.", "table": "a | 1"}},
     {"type": "chart", "data": {"chart_type": "line", "title": "Colores", "color": "pastel_orange", "colors": ["pastel_orange", "navy", "Mal!", "gold"],
                                "table": "a | 1 | 2 | 3 | 4"}},
+    {"type": "paragraph", "data": {"text": "Ver [el informe](https://indec.gob.ar/x?a=1&b=2) y www.enargas.gob.ar. Nada de javascript:alert(1) ni <a href=x>."}},
 ]})
 bl = blocks()
 ok(bl[8]["data"]["color"] == "pastel_orange" and bl[8]["data"]["colors"] == ["pastel_orange", "navy", "", "gold"],
@@ -180,6 +181,10 @@ ok("Figura vacía" not in html.split('id="comentarios"')[0].split("chart-card")[
    "figura sin ningún panel con datos: no se muestra (el admin ve el aviso)")
 ok('class="chart-note">Nota al pie del gráfico simple.' in html, "nota al pie en un gráfico simple")
 ok('"colors": ["pastel_orange", "navy", "", "gold"]' in html, "el post recibe los colores por serie para charts.js")
+ok('<a href="https://indec.gob.ar/x?a=1&amp;b=2" target="_blank" rel="noopener">el informe</a>' in html
+   and '<a href="http://www.enargas.gob.ar" target="_blank" rel="noopener">www.enargas.gob.ar</a>.' in html
+   and 'href="javascript' not in html and '<a href=x>' not in html and "&lt;a href=x&gt;" in html,
+   "links en párrafos: [texto](url) y URLs sueltas se vuelven clicables; javascript: y HTML crudo no")
 ok(html.count('class="chart-wrap"') == 7, "7 cajas de gráfico con datos en el post")
 ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
 ok('"panels": [' in ehtml and '"table": "2025 | 38 | 30 | 32\\n2026 | 44 | 34 | 22"' in ehtml and '"note": "\\u00b9En 2017' in ehtml,
@@ -248,9 +253,10 @@ r = c.post(f"/admin/posts/{pid}/publish", data={"next": f"/admin/posts/{pid}/edi
 ok(r.status_code == 302 and r.headers["Location"].endswith(f"/admin/posts/{pid}/edit"), "publicar desde el editor vuelve al editor")
 r = anon.get("/post/" + slug)
 ok(r.status_code == 200 and "BORRADOR" not in text(r), "visible públicamente")
-ok(db_row("SELECT post_number FROM posts WHERE id=?", pid)["post_number"] == 1 and "N.º 1 · Prueba" in text(r),
-   "primera publicación: recibe el N.º 1 y se muestra con la etiqueta")
-ok("N.º 1" in text(anon.get("/")), "la portada muestra el número de cada post")
+ok(db_row("SELECT post_number FROM posts WHERE id=?", pid)["post_number"] == 1
+   and '<div class="section-marker post-marker"><span class="num">1</span><span class="tag">Prueba</span></div>' in text(r),
+   "primera publicación: recibe el N.º 1, mostrado en caja como los numerales de sección, con la etiqueta")
+ok('class="section-marker card-marker"><span class="num">1</span>' in text(anon.get("/")), "la portada muestra el número de cada post en caja")
 save({**GENERAL, "author": "", "blocks": BLOCKS})
 ok('class="byline">Publicado el ' in text(anon.get("/post/" + slug)), "sin autor: 'Publicado el fecha', sin repetir el nombre del Instituto")
 save({**GENERAL, "blocks": BLOCKS})
@@ -283,7 +289,15 @@ lhtml = text(c.get("/admin/comentarios"))
 ok("Ana" in lhtml and "Título cambiado" in lhtml and "Borrar" in lhtml, "lista de comentarios en el panel, con el post al que pertenecen")
 ok(anon.get("/admin/comentarios").status_code == 302, "lista de comentarios requiere login")
 ok("pendiente" not in text(c.get("/admin/")), "dashboard: sin aviso de pendientes en moderación posterior")
-cid = db_row("SELECT id FROM comments WHERE name='Ana'")["id"]
+r = anon.post(curl, data={"name": "Ana", "body": "Miren esto: https://www.argentina.gob.ar/energia, vale la pena."}, follow_redirects=True)
+ok("Como tiene links" in text(r) and db_row("SELECT status FROM comments WHERE body LIKE 'Miren esto%'")["status"] == "pending",
+   "comentario con link: queda para autorizar (anti-spam) y avisa por qué")
+linkc = db_row("SELECT id FROM comments WHERE body LIKE 'Miren esto%'")["id"]
+ok("1 comentario pendiente" in text(c.get("/admin/")), "el pendiente por link aparece en el dashboard")
+c.post(f"/admin/comentarios/{linkc}/aprobar", data={"next": "/admin/comentarios"})
+ok('<a href="https://www.argentina.gob.ar/energia" target="_blank" rel="nofollow noopener">https://www.argentina.gob.ar/energia</a>,' in text(app.test_client().get("/post/" + slug)),
+   "aprobado: el link del comentario es clicable, con rel=nofollow y la coma afuera")
+cid = db_row("SELECT id FROM comments WHERE name='Ana' AND body LIKE 'Muy buen%'")["id"]
 r = c.post(curl, data={"body": "Sí, los publicamos la semana que viene.", "parent_id": str(cid)}, follow_redirects=True)
 staff = db_row("SELECT * FROM comments WHERE is_staff=1")
 ok(staff is not None and staff["status"] == "approved" and staff["parent_id"] == cid and staff["name"] == appmod.STAFF_NAME,
@@ -297,7 +311,7 @@ ok(len([m for m in SENT if "la semana que viene" in m[1]]) == 0, "las respuestas
 anon.post(curl, data={"name": "Ana", "body": "Gracias, quedo atenta.", "parent_id": str(staff["id"])})
 ok(db_row("SELECT parent_id FROM comments WHERE body LIKE 'Gracias, quedo%'")["parent_id"] == cid,
    "responder a una respuesta cuelga del comentario original (un solo nivel)")
-for i in range(13):   # ya van 2 de Ana desde esta IP; el límite es 15 cada 10 minutos
+for i in range(13):   # ya van 3 de Ana desde esta IP (uno con link); el límite es 15 cada 10 minutos
     anon.post(curl, data={"name": "Ana", "body": f"comentario número {i} de prueba"})
 r = anon.post(curl, data={"name": "Ana", "body": "este ya es demasiado"}, follow_redirects=True)
 ok("Esperá unos minutos" in text(r) and db_row("SELECT COUNT(*) AS c FROM comments WHERE body LIKE 'este ya es%'")["c"] == 0,
