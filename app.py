@@ -93,6 +93,19 @@ CHART_TYPES = [
 # subtítulo, nota al pie y fuente en común, al estilo de los "exhibits".
 BLOCK_TYPES = ["heading", "paragraph", "callout", "chart", "figure", "image"]
 MAX_FIGURE_PANELS = 3
+# Colores de un gráfico: hasta 24 (uno por serie, bloque o destino), cada uno
+# una clave de la paleta de static/charts.js o un "#RRGGBB" libre.
+MAX_CHART_COLORS = 24
+COLOR_RE = re.compile(r"[a-z_]{1,30}|#[0-9a-fA-F]{6}")
+
+
+def clean_color(value, default=""):
+    """Valida un color del editor: clave de la paleta o "#RRGGBB" (se guarda
+    en minúsculas). Cualquier otra cosa vuelve al valor por defecto."""
+    value = str(value or "").strip()
+    if not COLOR_RE.fullmatch(value):
+        return default
+    return value.lower() if value.startswith("#") else value
 
 # Comentarios de lectores. Las respuestas del equipo (logueado en el panel)
 # llevan esta firma y salen siempre al instante.
@@ -876,16 +889,15 @@ def block_data_from_form(block_type, form):
         if chart_type not in CHART_TYPES:
             chart_type = "bar_comparison"
         # Colores: claves de la paleta de static/charts.js (ej. "navy",
-        # "pastel_orange"). "color" es el principal; "colors", uno por serie.
-        # Acá solo se valida la forma; una clave desconocida cae al color por
-        # defecto al dibujar.
-        color = str(form.get("color") or "orange")
-        if not re.fullmatch(r"[a-z_]{1,30}", color):
-            color = "orange"
+        # "pastel_orange") o un color libre "#RRGGBB" elegido en el editor.
+        # "color" es el principal; "colors", uno por serie (o por bloque en el
+        # treemap, por destino en el Sankey). Acá solo se valida la forma; una
+        # clave desconocida cae al color por defecto al dibujar.
+        color = clean_color(form.get("color"), "orange")
         raw_colors = form.get("colors")
         colors = []
         if isinstance(raw_colors, list):
-            colors = [c if re.fullmatch(r"[a-z_]{1,30}", str(c)) else "" for c in raw_colors[:12]]
+            colors = [clean_color(c) for c in raw_colors[:MAX_CHART_COLORS]]
         # Opciones propias de cada tipo (título de eje, unidad, etc.): un dict
         # chico de texto. Se aceptan solo claves con pinta de identificador y
         # se descartan las vacías.

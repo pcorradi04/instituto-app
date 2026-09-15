@@ -59,11 +59,17 @@ python test_app.py
 2. "Nuevo post": le ponés un título y se abre el editor.
 3. El editor **es el post**: ves la misma página que van a ver los lectores,
    con el mismo diseño, pero vacía. Hacés click en cualquier texto
-   (etiqueta, título, copete) y escribís ahí mismo.
-4. Con los botones de abajo de todo ("+ Agregar") sumás bloques al final.
-   Para meter uno **entre** dos bloques que ya están, pasá el mouse por la
-   línea que los separa: aparece "insertar acá" con los cinco tipos. Los
-   bloques aparecen en el lugar exacto donde van a quedar:
+   (etiqueta, título, copete) y escribís ahí mismo. Arriba hay una **guía**
+   de cinco pasos (se puede ocultar; el navegador se acuerda) y una fila de
+   progreso que dice qué le falta al post: título, etiqueta, copete,
+   bloques, guardado, publicado. Un post vacío ofrece "Empezar con una
+   estructura de ejemplo": una sección, un párrafo, un gráfico con datos de
+   muestra y un destacado, para ver cómo se combinan y editar encima.
+4. Con los botones de abajo de todo ("+ Agregar al final", cada uno dice
+   para qué sirve) sumás bloques al final. Para meter uno **entre** dos
+   bloques que ya están, pasá el mouse por la línea que los separa: aparece
+   "insertar acá" con los seis tipos. Los bloques aparecen en el lugar
+   exacto donde van a quedar:
    - **Título de sección**: se numera solo con números romanos (I, II, III...).
    - **Párrafo**: texto corrido. Línea en blanco = párrafo nuevo. Seleccioná
      texto y tocá **B** o **I** (aparecen al pasar el mouse) para negrita o
@@ -73,9 +79,16 @@ python test_app.py
      dato clave o una advertencia.
    - **Gráfico**: elegís el tipo (hay 20, agrupados: comparación, evolución
      en el tiempo, composición, distribución e indicadores), el color de
-     cada serie (paleta de 20: 10 institucionales y 10 pastel; aparece un
-     selector por serie según las columnas que cargues), y los datos como
-     texto simple, una fila por línea:
+     cada serie y los datos como texto simple, una fila por línea. Si no
+     sabés qué formato lleva el tipo que elegiste, tocá **Cargar ejemplo**:
+     llena la tabla con datos de muestra y editás sobre eso. Los colores:
+     hay un botón por serie (o por bloque en el treemap, por destino en el
+     Sankey) debajo del gráfico, y también podés **hacer clic sobre la
+     serie en el gráfico mismo** (una barra, un punto, un bloque, o su
+     nombre en la leyenda): se abre la paleta al lado. La paleta tiene 64
+     colores en seis grupos (institucionales, vivos, pastel, tierra,
+     oscuros, grises) y un selector libre para cualquier otro color
+     (o escribís el código, ej. `#1F77B4`). Los datos:
      ```
      Mayo 2026 | 959.1 | 1172
      Junio 2026 | 401.3 | 918
@@ -163,8 +176,9 @@ Cada gráfico lleva el logo gris del Instituto arriba a la derecha, que
 también sale en el PNG.
 
 Además, cada post muestra autor y fecha debajo del título (el autor se
-carga en el editor, en la línea "Por ...") y botones para compartir en X,
-LinkedIn y WhatsApp o copiar el link. Son links simples, sin rastreo.
+carga en el editor, en la línea "Por ...") y, al final del texto, los logos
+de X, LinkedIn y WhatsApp para compartirlo, más un botón "Copiar link". Son
+links simples, sin rastreo.
 
 ## 3. Estructura del proyecto
 

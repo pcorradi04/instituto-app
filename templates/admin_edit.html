@@ -36,7 +36,19 @@
   </div>
 </div>
 
-<div class="editor-hint">Esto es el post tal como lo van a ver los lectores. Hacé click en cualquier texto para escribirlo ahí mismo; los bloques se agregan con los botones de abajo. Guardá con el botón de arriba o con Ctrl+S.</div>
+<div class="editor-guide" id="guide">
+  <div class="guide-top">
+    <span class="guide-progress" id="guideProgress" title="Qué le falta al post"></span>
+    <button type="button" class="guide-toggle" id="guideToggle">ver la guía</button>
+  </div>
+  <ol class="guide-steps" id="guideSteps" hidden>
+    <li><b>Encabezado.</b> Esto es el post tal como lo van a ver los lectores: tocá el texto gris y escribí encima. Etiqueta (la categoría, ej. "Comercio Exterior"), título, quién firma y el copete.</li>
+    <li><b>Bloques.</b> Secciones, párrafos, destacados, gráficos e imágenes se agregan con los botones del final. Para meter uno en el medio, pasá el mouse entre dos bloques: aparece "insertar acá". Con ↑ y ↓ los reordenás; con ✕ los borrás.</li>
+    <li><b>Gráficos.</b> Elegí el tipo, pegá la tabla (una fila por línea, columnas separadas con "|") y se dibuja solo. Si no sabés qué formato lleva, tocá <i>Cargar ejemplo</i> y editá sobre eso. Para cambiar el color de una serie, hacé clic sobre ella en el gráfico (o en su nombre en la leyenda).</li>
+    <li><b>Guardar.</b> Ctrl+S o el botón Guardar, las veces que quieras. Mientras no publiques, nadie lo ve; con "Ver post ↗" lo mirás como lector.</li>
+    <li><b>Publicar.</b> El post recibe su número, aparece en la portada y su dirección queda fija. Después podés seguir editándolo: los cambios salen al guardar.</li>
+  </ol>
+</div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for category, msg in messages %}
@@ -55,13 +67,13 @@
 <section style="border-bottom:none;">
   <div id="blocks"></div>
   <div class="add-bar">
-    <span>+ Agregar:</span>
-    <button type="button" data-add="heading">Título de sección</button>
-    <button type="button" data-add="paragraph">Párrafo</button>
-    <button type="button" data-add="callout">Destacado</button>
-    <button type="button" data-add="chart">Gráfico</button>
-    <button type="button" data-add="figure">Figura (2 o 3 gráficos juntos)</button>
-    <button type="button" data-add="image">Imagen</button>
+    <span class="add-lbl">+ Agregar al final:</span>
+    <button type="button" data-add="heading"><b>Título de sección</b><small>se numera solo: I, II, III…</small></button>
+    <button type="button" data-add="paragraph"><b>Párrafo</b><small>texto; negrita, itálica y links</small></button>
+    <button type="button" data-add="callout"><b>Destacado</b><small>caja de color para una idea clave</small></button>
+    <button type="button" data-add="chart"><b>Gráfico</b><small>20 tipos; pegás una tabla de datos</small></button>
+    <button type="button" data-add="figure"><b>Figura</b><small>2 o 3 gráficos lado a lado</small></button>
+    <button type="button" data-add="image"><b>Imagen</b><small>subís una foto o captura</small></button>
   </div>
 </section>
 </main>
@@ -79,6 +91,7 @@ const ACCENTS = {{ accents | tojson }};
 const SAVE_URL = "{{ url_for('admin_save_post', post_id=post['id']) }}";
 const UPLOAD_URL = "{{ url_for('admin_upload') }}";
 const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
+const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
 </script>
 <script>
 (function () {
@@ -104,8 +117,27 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
     isDirty = true;
     saveState.textContent = 'Cambios sin guardar';
     saveState.className = 'save-state dirty';
+    updateProgress();
   }
-  function setSaved(msg) { isDirty = false; saveState.textContent = msg; saveState.className = 'save-state'; }
+  function setSaved(msg) { isDirty = false; saveState.textContent = msg; saveState.className = 'save-state'; updateProgress(); }
+
+  // ---- guía: progreso del post y pasos ------------------------------------
+  // La fila de progreso dice qué le falta al post; los pasos se muestran la
+  // primera vez y se pueden ocultar (el navegador recuerda la elección).
+  function updateProgress() {
+    const nb = state.blocks.length;
+    const items = [['Título', !!state.title.trim()], ['Etiqueta', !!state.eyebrow.trim()], ['Copete', !!state.dek.trim()],
+      [nb ? nb + (nb === 1 ? ' bloque' : ' bloques') : 'Sin bloques', nb > 0], ['Guardado', !isDirty], ['Publicado', PUBLISHED]];
+    $('#guideProgress').innerHTML = items.map(([t, ok]) => `<span class="${ok ? 'done' : 'todo'}">${ok ? '✓' : '○'} ${esc(t)}</span>`).join('');
+  }
+  (function () {
+    const steps = $('#guideSteps'), toggle = $('#guideToggle');
+    let open = true;
+    try { open = localStorage.getItem('ie_guide') !== 'off'; } catch (e) { /* sin almacenamiento: queda abierta */ }
+    const paint = () => { steps.hidden = !open; toggle.textContent = open ? 'ocultar la guía' : 'ver la guía'; };
+    toggle.addEventListener('click', () => { open = !open; try { localStorage.setItem('ie_guide', open ? 'on' : 'off'); } catch (e) { /* nada */ } paint(); });
+    paint();
+  })();
 
   // ---- helpers ------------------------------------------------------------
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -122,9 +154,9 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
   }
 
   // ---- datos generales (hero) --------------------------------------------
-  bind($('#fEyebrow'), state, 'eyebrow');
-  bind($('#fTitle'), state, 'title', () => { document.title = 'Editando: ' + (state.title || 'Sin título'); });
-  bind($('#fDek'), state, 'dek');
+  bind($('#fEyebrow'), state, 'eyebrow', updateProgress);
+  bind($('#fTitle'), state, 'title', () => { document.title = 'Editando: ' + (state.title || 'Sin título'); updateProgress(); });
+  bind($('#fDek'), state, 'dek', updateProgress);
   bind($('#fAuthor'), state, 'author');
   noEnter($('#fTitle'));
 
@@ -250,7 +282,7 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
           <img class="chart-logo" src="${LOGO_URL}" alt="">
         </div>
         <div class="chart-wrap"></div>
-        <div class="chart-empty" hidden>Cargá los datos acá abajo y el gráfico aparece en este lugar.</div>
+        <div class="chart-empty" hidden>Todavía no hay datos. Pegá la tabla acá abajo y el gráfico aparece en este lugar.</div>
         <div class="chart-note"><input class="ed" placeholder="Nota al pie (opcional): aclaraciones metodológicas, definiciones, cambios de serie."></div>
         <div class="chart-source">Fuente: <input class="ed inline" placeholder="Secretaría de Energía; INDEC"></div>
       </div></div>`);
@@ -260,8 +292,15 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
       bind(n.querySelector('.chart-note input'), d, 'note');
       bind(n.querySelector('.chart-source input'), d, 'source');
       const wrap = n.querySelector('.chart-wrap'), empty = n.querySelector('.chart-empty');
-      n.querySelector('.chart-card').appendChild(chartDataPanel(d, debounced(() => drawChartIn(wrap, empty, d))));
-      n._redraw = () => drawChartIn(wrap, empty, d);
+      // El clic sobre una serie del gráfico abre el selector de color del
+      // panel de datos (dp._pickColor); dp se crea recién abajo, por eso el
+      // dibujo lo busca en el momento.
+      let dp = null;
+      const draw = () => drawChartIn(wrap, empty, d, (i, evt) => dp && dp._pickColor(i, evt));
+      dp = chartDataPanel(d, debounced(draw));
+      n.querySelector('.chart-card').appendChild(dp);
+      emptyWithExample(empty, dp);
+      n._redraw = draw;
       return n;
     },
     figure(b) {
@@ -297,15 +336,19 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
           const p = el(`<div class="figure-panel">
             <div class="panel-head"><div class="panel-title"><input class="ed" placeholder="Título de este gráfico (opcional)"></div>${d.panels.length > 1 ? '<button type="button" class="linklike danger panel-del">quitar</button>' : ''}</div>
             <div class="chart-wrap"></div>
-            <div class="chart-empty" hidden>Cargá los datos abajo.</div>
+            <div class="chart-empty" hidden>Todavía no hay datos: pegá la tabla abajo.</div>
           </div>`);
           bind(p.querySelector('.panel-title input'), pd, 'title');
           const wrap = p.querySelector('.chart-wrap'), empty = p.querySelector('.chart-empty');
-          p.appendChild(chartDataPanel(pd, debounced(() => drawChartIn(wrap, empty, pd))));
+          let dp = null;
+          const draw = () => drawChartIn(wrap, empty, pd, (k, evt) => dp && dp._pickColor(k, evt));
+          dp = chartDataPanel(pd, debounced(draw));
+          p.appendChild(dp);
+          emptyWithExample(empty, dp);
           const del = p.querySelector('.panel-del');
           if (del) del.addEventListener('click', () => { if (!confirm('¿Quitar este gráfico de la figura?')) return; d.panels.splice(i, 1); dirty(); renderPanels(); });
           grid.appendChild(p);
-          redraws.push(() => drawChartIn(wrap, empty, pd));
+          redraws.push(draw);
         });
         addBtn.disabled = d.panels.length >= 3;
         if (n.isConnected) redraws.forEach(f => f());
@@ -373,7 +416,7 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
     if (!d.options || typeof d.options !== 'object') d.options = {};
     if (!CHART_SPECS[d.chart_type]) d.chart_type = 'bar_comparison';
     const panel = el(`<div class="chart-data">
-      <div class="row"><label>Tipo</label><select class="ctype"></select></div>
+      <div class="row"><label>Tipo</label><select class="ctype"></select><button type="button" class="cexample" title="Llena la tabla con datos de muestra para este tipo de gráfico: los editás o los reemplazás por los tuyos">Cargar ejemplo</button></div>
       <div class="row ccolors"></div>
       <div class="row cnames-row"><label class="cnames-label"></label><input type="text" class="cnames"></div>
       <div class="row copts"></div>
@@ -395,19 +438,12 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
     const onData = () => { buildColors(); redraw(); };
     bind(inNames, d, 'series_names', onData);
     bind(taTable, d, 'table', onData);
-    // Un selector de color por serie (tantos como columnas de datos haya),
-    // o uno solo para los tipos que usan un color principal.
-    function colorSelect(value) {
-      const s = document.createElement('select'); s.className = 'ccolor';
-      CHART_PALETTE_GROUPS.forEach(g => {
-        const og = document.createElement('optgroup'); og.label = g;
-        Object.entries(CHART_PALETTE).forEach(([k, c]) => { if (c.group !== g) return; const o = document.createElement('option'); o.value = k; o.textContent = c.label; og.appendChild(o); });
-        s.appendChild(og);
-      });
-      s.value = CHART_PALETTE[value] ? value : 'orange';
-      return s;
-    }
-    const DEFAULT_COLORS = ['orange', 'maroon', 'navy', 'blue', 'rust', 'purple', 'olive', 'gray'];
+    // Un color por serie (o por bloque / destino, o uno solo, según el tipo:
+    // chartColorSlots lo decide con los datos cargados). Cada uno es un
+    // botón con el círculo del color; al tocarlo se abre la paleta. Lo mismo
+    // pasa al hacer clic sobre la serie en el gráfico (ver drawChartIn).
+    const DEFAULT_COLORS = ['orange', 'maroon', 'navy', 'blue', 'rust', 'purple', 'olive', 'gray', 'teal', 'gold', 'green', 'slate'];
+    const slotNames = () => chartColorSlots(d.chart_type, parseChartTable(d.table), String(d.series_names || '').split(',').map(s => s.trim()).filter(Boolean));
     function buildColors() {
       const spec = CHART_SPECS[d.chart_type];
       const row = panel.querySelector('.ccolors');
@@ -415,21 +451,43 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
       row.hidden = spec.colorMode === 'none';
       if (row.hidden) return;
       if (!Array.isArray(d.colors)) d.colors = [];
-      const n = spec.colorMode === 'series' ? chartSeriesCount(d.chart_type, parseChartTable(d.table)) : 1;
-      const names = String(d.series_names || '').split(',').map(s => s.trim());
-      const lab = document.createElement('label'); lab.textContent = n > 1 ? 'Colores' : 'Color'; row.appendChild(lab);
-      for (let i = 0; i < n; i++) {
-        if (!CHART_PALETTE[d.colors[i]]) d.colors[i] = i === 0 ? (CHART_PALETTE[d.color] ? d.color : 'orange') : DEFAULT_COLORS[i % DEFAULT_COLORS.length];
-        const item = el('<span class="cswatch"><small></small><span class="dot"></span></span>');
-        item.querySelector('small').textContent = n > 1 ? (names[i] || ('Serie ' + (i + 1))) : '';
-        const dot = item.querySelector('.dot'); dot.style.background = CHART_PALETTE[d.colors[i]].hex;
-        const s = colorSelect(d.colors[i]);
-        s.addEventListener('change', () => { d.colors[i] = s.value; if (i === 0) d.color = s.value; dot.style.background = CHART_PALETTE[s.value].hex; dirty(); redraw(); });
-        item.appendChild(s);
+      const slots = slotNames();
+      const lab = document.createElement('label'); lab.textContent = slots.length > 1 ? 'Colores' : 'Color'; row.appendChild(lab);
+      slots.forEach((name, i) => {
+        if (!chartColorHex(d.colors[i])) d.colors[i] = i === 0 ? (chartColorHex(d.color) ? d.color : 'orange') : DEFAULT_COLORS[i % DEFAULT_COLORS.length];
+        const item = el('<button type="button" class="cswatch" title="Cambiar este color"><span class="dot"></span><small></small></button>');
+        item.querySelector('small').textContent = slots.length > 1 ? name : 'principal';
+        item.querySelector('.dot').style.background = chartColorHex(d.colors[i]);
+        item.addEventListener('click', () => pickColor(i, item));
         row.appendChild(item);
-      }
+      });
       d.color = d.colors[0];
+      row.appendChild(el('<span class="chelp">tocá un color, o directamente la serie en el gráfico</span>'));
     }
+    // Abre la paleta para el color i, al lado de "at" (un botón o el clic).
+    function pickColor(i, at) {
+      const slots = slotNames();
+      if (i < 0 || i >= slots.length) return;
+      colorPopover(at, { title: slots[i], value: d.colors[i] }, v => {
+        d.colors[i] = v; if (i === 0) d.color = v; dirty();
+        const sw = panel.querySelectorAll('.cswatch')[i];
+        if (sw) sw.querySelector('.dot').style.background = chartColorHex(v);
+        redraw();
+      });
+    }
+    panel._pickColor = pickColor;
+    // "Cargar ejemplo": la tabla y los nombres de muestra del tipo elegido.
+    function loadExample() {
+      const spec = CHART_SPECS[d.chart_type];
+      if (String(d.table || '').trim() && !confirm('¿Reemplazar los datos cargados por los de ejemplo?')) return;
+      d.table = spec.placeholder; taTable.value = d.table;
+      if (spec.names) { d.series_names = spec.names_placeholder || ''; inNames.value = d.series_names; }
+      if (d.chart_type === 'sankey') { d.options.origin = 'Gas exportado 2025'; buildPanel(); }
+      dirty(); buildColors(); redraw(); grow(taTable);
+      taTable.focus();
+    }
+    panel._loadExample = loadExample;
+    panel.querySelector('.cexample').addEventListener('click', loadExample);
     function buildPanel() {
       const spec = CHART_SPECS[d.chart_type];
       panel.querySelector('.cnames-row').hidden = !spec.names;
@@ -456,7 +514,8 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
 
   // Dibuja un gráfico en su caja con los datos actuales (parseChartTable y
   // renderPostChart vienen de static/charts.js, los mismos que usa el post).
-  function drawChartIn(wrap, empty, d) {
+  // onSeriesClick recibe el índice de color de la serie tocada en el gráfico.
+  function drawChartIn(wrap, empty, d, onSeriesClick) {
     const spec = CHART_SPECS[d.chart_type] || CHART_SPECS.bar_comparison;
     if (spec.kind === 'canvas' && typeof Chart === 'undefined') {
       wrap.hidden = true; empty.hidden = false;
@@ -469,8 +528,71 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
     if (!has) return;
     const names = String(d.series_names || '').split(',').map(s => s.trim()).filter(Boolean);
     renderPostChart(wrap, { chart_type: d.chart_type, title: d.title, labels: parsed.labels, series: parsed.series, rows: parsed.rows,
-                            series_names: names, color: d.color, colors: d.colors || [], options: d.options }, ACCENT_HEX, { animate: false });
+                            series_names: names, color: d.color, colors: d.colors || [], options: d.options }, ACCENT_HEX, { animate: false, onSeriesClick });
   }
+  // El cuadro "todavía no hay datos" ofrece cargar el ejemplo del panel.
+  function emptyWithExample(empty, dp) {
+    const b = el('<button type="button" class="linklike">Cargar un ejemplo</button>');
+    b.addEventListener('click', () => dp._loadExample());
+    empty.appendChild(document.createTextNode(' O '));
+    empty.appendChild(b);
+    empty.appendChild(document.createTextNode(' para ver cómo queda.'));
+  }
+
+  // ---- paleta emergente -----------------------------------------------------
+  // Una sola en pantalla. "at" es el botón del color o el clic sobre el
+  // gráfico (se ubica al lado). cfg = {title, value}; onPick recibe la clave
+  // de la paleta o el "#RRGGBB" del selector libre, cada vez que cambia.
+  let popOpen = null;
+  function closePopover() { if (popOpen) { popOpen.remove(); popOpen = null; } }
+  function colorPopover(at, cfg, onPick) {
+    closePopover();
+    const pop = el(`<div class="cpop" role="dialog">
+      <div class="cpop-head"><b></b><button type="button" class="cpop-close" title="Cerrar">✕</button></div>
+      <div class="cpop-body"></div>
+      <div class="cpop-custom"><label>Otro color</label><input type="color" title="Elegí cualquier color"><input type="text" class="cpop-hex" maxlength="7" spellcheck="false" placeholder="#RRGGBB" title="O escribí el código del color"></div>
+    </div>`);
+    pop.querySelector('.cpop-head b').textContent = 'Color de: ' + cfg.title;
+    const body = pop.querySelector('.cpop-body');
+    CHART_PALETTE_GROUPS.forEach(g => {
+      const grp = el(`<div class="cpop-group"><div class="cpop-glbl">${esc(g)}</div><div class="cpop-grid"></div></div>`);
+      const grid = grp.querySelector('.cpop-grid');
+      Object.entries(CHART_PALETTE).forEach(([k, c]) => {
+        if (c.group !== g) return;
+        const b = el(`<button type="button" class="cpop-sw" title="${esc(c.label)}" style="background:${c.hex}"></button>`);
+        b.dataset.key = k;
+        b.addEventListener('click', () => { cfg.value = k; mark(); onPick(k); });
+        grid.appendChild(b);
+      });
+      body.appendChild(grp);
+    });
+    const inColor = pop.querySelector('input[type=color]'), inHex = pop.querySelector('.cpop-hex');
+    function mark() {
+      const hex = chartColorHex(cfg.value) || '#C1622E';
+      pop.querySelectorAll('.cpop-sw').forEach(b => b.classList.toggle('on', b.dataset.key === cfg.value));
+      inColor.value = hex.toLowerCase();
+      if (document.activeElement !== inHex) inHex.value = hex;
+    }
+    const custom = v => { v = String(v || '').trim(); if (!v.startsWith('#')) v = '#' + v; if (!/^#[0-9a-f]{6}$/i.test(v)) return; cfg.value = v.toUpperCase(); mark(); onPick(cfg.value); };
+    inColor.addEventListener('input', () => custom(inColor.value));
+    inHex.addEventListener('input', () => custom(inHex.value));
+    pop.querySelector('.cpop-close').addEventListener('click', closePopover);
+    mark();
+    document.body.appendChild(pop);
+    popOpen = pop;
+    // Ubicación: debajo del botón, o en el punto del clic; sin salirse de la pantalla.
+    let x, y;
+    if (at && typeof at.clientX === 'number') { x = at.clientX; y = at.clientY + 10; }
+    else { const r = at.getBoundingClientRect(); x = r.left; y = r.bottom + 6; }
+    const W = pop.offsetWidth, H = pop.offsetHeight;
+    if (x + W > window.innerWidth - 8) x = Math.max(8, window.innerWidth - 8 - W);
+    if (y + H > window.innerHeight - 8) y = y - H - 20;          // arriba del botón
+    y = Math.max(8, Math.min(y, window.innerHeight - 8 - H));   // y siempre en pantalla
+    pop.style.left = x + 'px'; pop.style.top = y + 'px';
+  }
+  document.addEventListener('mousedown', e => { if (popOpen && !popOpen.contains(e.target)) closePopover(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePopover(); });
+  window.addEventListener('resize', closePopover);
   function redrawAllCharts() {
     container.querySelectorAll('.blk').forEach(n => { if (n._redraw) n._redraw(); });
   }
@@ -488,7 +610,14 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
   function renderAll() {
     if (window.Chart && Chart.getChart) container.querySelectorAll('canvas').forEach(c => { const ch = Chart.getChart(c); if (ch) ch.destroy(); });
     container.innerHTML = '';
-    if (!state.blocks.length) container.appendChild(el('<p class="editor-empty">El post está vacío: agregá el primer bloque con los botones de acá abajo.</p>'));
+    closePopover();
+    if (!state.blocks.length) {
+      const e = el(`<div class="editor-empty"><p>El post está vacío. Agregá el primer bloque con los botones de acá abajo, o…</p>
+        <button type="button" class="btn small secondary">Empezar con una estructura de ejemplo</button>
+        <small>Una sección, un párrafo, un gráfico con datos de muestra y un destacado. Después los editás o los borrás.</small></div>`);
+      e.querySelector('button').addEventListener('click', addExampleStructure);
+      container.appendChild(e);
+    }
     let h = 0;
     state.blocks.forEach((b, i) => {
       container.appendChild(insertBar(i));
@@ -497,6 +626,19 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
       if (node._redraw) node._redraw();   // los gráficos se dibujan ya conectados al DOM
     });
     growAll(container);
+    updateProgress();
+  }
+  // Esqueleto de post para arrancar: muestra cómo se combinan los bloques.
+  function addExampleStructure() {
+    const sp = CHART_SPECS.bar_comparison;
+    [
+      { type: 'heading', data: { tag: 'Contexto', title: 'Qué pasó este mes' } },
+      { type: 'paragraph', data: { text: 'Escribí acá el texto de la sección. Una línea en blanco separa párrafos. Podés marcar **negrita** e *itálica* con los botones B e I, y pegar links tal cual.' } },
+      { type: 'chart', data: Object.assign(DEFAULTS.chart(), { title: 'Título del gráfico (ejemplo)', subtitle: 'USD millones, mensual', source: 'Secretaría de Energía; INDEC', series_names: sp.names_placeholder, table: sp.placeholder }) },
+      { type: 'callout', data: { color: 'orange', text: 'Un destacado: el dato o la conclusión que no querés que nadie se pierda.' } },
+    ].forEach(it => state.blocks.push({ uid: uid(), type: it.type, data: it.data }));
+    dirty(); renderAll();
+    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // Agrega un bloque nuevo en la posición "at" (o al final) y lo enfoca.
@@ -543,6 +685,7 @@ const LOGO_URL = "{{ url_for('static', filename='img/logo-watermark.png') }}";
 
   renderAll();
   growAll();
+  updateProgress();
   requestAnimationFrame(() => growAll());
 })();
 </script>

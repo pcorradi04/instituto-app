@@ -475,6 +475,34 @@ entre turnos. Estado al cierre de esa ronda:
   Downloads: `Logo Gris.png`, `logo gris invertido*.jpeg`, `logo gris
   horizontal.jpeg`); la marca de agua se regeneró desde "logo gris
   invertido" (gris sobre blanco → gris sobre transparente, 600 px).
+- **15 sep 2026 (tarde)** — pedido: "apretar una serie de cualquier gráfico
+  y definir yo el color", "paleta por gráfico mucho más abundante" (la
+  paleta general del sitio queda como está), "más didáctica la creación de
+  cada post", y "el logo de cada uno en vez del vínculo" en Compartir.
+  (1) `charts.js`: paleta de 64 colores en 6 grupos (Institucional, Vivos,
+  Pastel, Tierra, Oscuros, Grises) + color libre `#RRGGBB`
+  (`chartColorHex()` acepta clave o hex; `clean_color()` en app.py valida y
+  guarda el hex en minúsculas; hasta `MAX_CHART_COLORS=24`). Las claves
+  viejas no cambian. `chartColorSlots(tipo, parsed, nombres)` dice cuántos
+  colores se eligen y cómo se llama cada uno; treemap y Sankey pasaron a
+  `colorMode: 'items'` (un color por bloque / destino). (2) Clic sobre la
+  serie: `renderPostChart(..., {onSeriesClick})`; en Chart.js cada dataset
+  lleva `_si` (índice de color, -1 = no elegible) y `baseOptions` engancha
+  `onClick` (con "punto más cercano a 28 px" para líneas finas), el clic en
+  la leyenda y el cursor; en los de HTML/SVG los elementos llevan
+  `data-si` y el contenedor resuelve el clic. Sin `onSeriesClick` (post
+  público) nada cambia. En `bar_line` la línea ahora usa `P[i]` (antes un
+  color fijo). (3) Editor: paleta emergente (`colorPopover`: grillas por
+  grupo + `<input type=color>` + campo hex, una sola abierta, Esc/clic
+  afuera la cierran), botones `.cswatch` por serie, "Cargar ejemplo" por
+  gráfico (`_loadExample`, también desde el cuadro "todavía no hay datos"),
+  guía de 5 pasos ocultable (`localStorage['ie_guide']`) con fila de
+  progreso (título, etiqueta, copete, bloques, guardado, publicado),
+  botones "+ Agregar" con descripción, y "Empezar con una estructura de
+  ejemplo" en el post vacío. (4) Compartir: SVG inline de X, LinkedIn y
+  WhatsApp (paths de simple-icons, CC0) en círculos con hover en el color
+  de cada red; "Copiar link" con ícono de cadena y texto en `.lbl`.
+  Tests: 120 chequeos (hex válido/inválido, tope de 24, íconos, paleta).
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

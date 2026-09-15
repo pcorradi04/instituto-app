@@ -14,12 +14,16 @@
    valor). Valores vacíos o no numéricos = sin dato.
 
    API:
-     renderPostChart(container, def, accentHex, {animate})
+     renderPostChart(container, def, accentHex, {animate, onSeriesClick})
        container = el <div class="chart-wrap"> donde dibujar
-       def       = {chart_type, labels, series, rows, series_names, color, options}
+       def       = {chart_type, labels, series, rows, series_names, color, colors, options}
        accentHex = {blue:'#0000CC', orange:'#C1622E', ...}
+       onSeriesClick(i, evento): solo el editor; se llama al hacer clic sobre
+                   una serie (o su nombre en la leyenda) con el índice de color
      parseChartTable(texto) -> {labels, series, rows}   (misma regla que app.py)
-     CHART_SPECS, CHART_GROUPS                           (para el editor)
+     chartColorSlots(tipo, parsed, nombres) -> nombres de cada color a elegir
+     chartColorHex(clave o "#RRGGBB") -> hex, o null si no vale
+     CHART_SPECS, CHART_GROUPS, CHART_PALETTE, CHART_PALETTE_GROUPS (editor)
 */
 (function () {
   'use strict';
@@ -28,31 +32,49 @@
   // Colores secundarios, en orden, después del color principal del gráfico.
   const EXTRA = ['#3B0A0A', '#1F4E5F', '#0000CC', '#A63D2F', '#7C6A9C', '#8C7A4A', '#B9B4A6', '#E8C24A'];
   // Paleta para elegir el color de cada serie en el editor (clave -> color).
-  // Las cuatro primeras son las del sistema de diseño; el resto amplía.
-  const PALETTE = {
-    blue: { hex: '#0000CC', label: 'Azul institucional', group: 'Institucional' },
-    orange: { hex: '#C1622E', label: 'Naranja (petróleo)', group: 'Institucional' },
-    navy: { hex: '#1F4E5F', label: 'Navy (gas)', group: 'Institucional' },
-    maroon: { hex: '#3B0A0A', label: 'Granate oscuro', group: 'Institucional' },
-    rust: { hex: '#A63D2F', label: 'Rojo óxido (alerta)', group: 'Institucional' },
-    gold: { hex: '#E8C24A', label: 'Dorado', group: 'Institucional' },
-    green: { hex: '#4E7D4E', label: 'Verde', group: 'Institucional' },
-    purple: { hex: '#7C6A9C', label: 'Violeta', group: 'Institucional' },
-    olive: { hex: '#8C7A4A', label: 'Oliva', group: 'Institucional' },
-    gray: { hex: '#B9B4A6', label: 'Gris', group: 'Institucional' },
-    pastel_orange: { hex: '#E9B79A', label: 'Pastel naranja', group: 'Pastel' },
-    pastel_navy: { hex: '#9FBCC6', label: 'Pastel navy', group: 'Pastel' },
-    pastel_blue: { hex: '#AAB4EE', label: 'Pastel azul', group: 'Pastel' },
-    pastel_maroon: { hex: '#C9A0A0', label: 'Pastel granate', group: 'Pastel' },
-    pastel_rust: { hex: '#E0B0A8', label: 'Pastel óxido', group: 'Pastel' },
-    pastel_gold: { hex: '#F1DFA0', label: 'Pastel dorado', group: 'Pastel' },
-    pastel_green: { hex: '#B5D0B0', label: 'Pastel verde', group: 'Pastel' },
-    pastel_purple: { hex: '#C8BEDC', label: 'Pastel violeta', group: 'Pastel' },
-    pastel_teal: { hex: '#A8D5D0', label: 'Pastel turquesa', group: 'Pastel' },
-    pastel_gray: { hex: '#D9D4C7', label: 'Pastel gris', group: 'Pastel' },
-  };
+  // Las claves se guardan en la base, así que no hay que renombrarlas. El
+  // editor también acepta un color libre en hexadecimal ("#RRGGBB"): ver
+  // colorHex(). Las cuatro primeras son las del sistema de diseño.
+  const PALETTE = {};
+  const group = (name, list) => list.forEach(([k, hex, label]) => { PALETTE[k] = { hex, label, group: name }; });
+  group('Institucional', [
+    ['blue', '#0000CC', 'Azul institucional'], ['orange', '#C1622E', 'Naranja (petróleo)'], ['navy', '#1F4E5F', 'Navy (gas)'],
+    ['maroon', '#3B0A0A', 'Granate oscuro'], ['rust', '#A63D2F', 'Rojo óxido (alerta)'], ['gold', '#E8C24A', 'Dorado'],
+    ['green', '#4E7D4E', 'Verde'], ['purple', '#7C6A9C', 'Violeta'], ['olive', '#8C7A4A', 'Oliva'], ['gray', '#B9B4A6', 'Gris'],
+  ]);
+  group('Vivos', [
+    ['red', '#D0342C', 'Rojo'], ['coral', '#F2705D', 'Coral'], ['amber', '#F0A030', 'Ámbar'], ['yellow', '#F2D22E', 'Amarillo'],
+    ['lime', '#9BC53D', 'Lima'], ['emerald', '#2E9E6B', 'Esmeralda'], ['teal', '#1F8A8A', 'Verde azulado'], ['cyan', '#2AB3D6', 'Celeste'],
+    ['sky', '#4A90E2', 'Cielo'], ['indigo', '#3F51B5', 'Índigo'], ['violet', '#8E44AD', 'Violeta vivo'], ['magenta', '#C2185B', 'Magenta'],
+    ['pink', '#E87DA8', 'Rosa'], ['brown', '#8B5A2B', 'Marrón'],
+  ]);
+  group('Pastel', [
+    ['pastel_orange', '#E9B79A', 'Pastel naranja'], ['pastel_navy', '#9FBCC6', 'Pastel navy'], ['pastel_blue', '#AAB4EE', 'Pastel azul'],
+    ['pastel_maroon', '#C9A0A0', 'Pastel granate'], ['pastel_rust', '#E0B0A8', 'Pastel óxido'], ['pastel_gold', '#F1DFA0', 'Pastel dorado'],
+    ['pastel_green', '#B5D0B0', 'Pastel verde'], ['pastel_purple', '#C8BEDC', 'Pastel violeta'], ['pastel_teal', '#A8D5D0', 'Pastel turquesa'],
+    ['pastel_gray', '#D9D4C7', 'Pastel gris'], ['pastel_pink', '#F4C2D0', 'Pastel rosa'], ['pastel_yellow', '#F6E7A3', 'Pastel amarillo'],
+    ['pastel_lime', '#D5E3A0', 'Pastel lima'], ['pastel_sky', '#B9D6F2', 'Pastel cielo'], ['pastel_lilac', '#D9C7E8', 'Pastel lila'],
+    ['pastel_coral', '#F5C1B0', 'Pastel coral'], ['pastel_mint', '#C4E6D1', 'Pastel menta'], ['pastel_sand', '#EAD9BF', 'Pastel arena'],
+  ]);
+  group('Tierra', [
+    ['clay', '#A0522D', 'Arcilla'], ['sienna', '#C4763C', 'Siena'], ['sand', '#D9B98A', 'Arena'], ['khaki', '#B8A66B', 'Caqui'],
+    ['moss', '#6E7B3A', 'Musgo'], ['forest', '#2F5D3A', 'Bosque'], ['slate', '#5C6B73', 'Pizarra'], ['taupe', '#8C8378', 'Topo'],
+    ['chocolate', '#5B3A29', 'Chocolate'], ['wine', '#722F37', 'Vino'],
+  ]);
+  group('Oscuros', [
+    ['dark_blue', '#0B2A6F', 'Azul marino'], ['dark_teal', '#0F4C5C', 'Petróleo'], ['dark_green', '#1B4D2B', 'Verde oscuro'],
+    ['dark_red', '#7A1F1F', 'Rojo oscuro'], ['dark_purple', '#3E2A5C', 'Violeta oscuro'], ['charcoal', '#2F2F2F', 'Carbón'], ['black', '#1A1A1A', 'Negro'],
+  ]);
+  group('Grises', [
+    ['gray_light', '#E6E2D8', 'Gris muy claro'], ['silver', '#C8C4BA', 'Plata'], ['stone', '#A39E93', 'Piedra'],
+    ['ash', '#7D7870', 'Ceniza'], ['graphite', '#55514B', 'Grafito'],
+  ]);
   window.CHART_PALETTE = PALETTE;
-  window.CHART_PALETTE_GROUPS = ['Institucional', 'Pastel'];
+  window.CHART_PALETTE_GROUPS = ['Institucional', 'Vivos', 'Pastel', 'Tierra', 'Oscuros', 'Grises'];
+  // Un color guardado puede ser una clave de la paleta o un "#RRGGBB" libre.
+  const HEX_RE = /^#[0-9a-f]{6}$/i;
+  const colorHex = k => PALETTE[k] ? PALETTE[k].hex : (HEX_RE.test(String(k || '')) ? String(k).toUpperCase() : null);
+  window.chartColorHex = colorHex;
   const nf = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
   const fmt = v => (v === null || v === undefined || isNaN(v)) ? '' : nf.format(v);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -177,15 +199,33 @@
   // Los gráficos de Chart.js aceptan un alto a medida (los de SVG/HTML tienen el suyo).
   const OPT_H = { key: 'height', label: 'Alto del gráfico (px)', placeholder: '360' };
   Object.values(SPECS).forEach(s => { if (s.kind === 'canvas') s.options = (s.options || []).concat([OPT_H]); });
-  // Qué colores se eligen en el editor: uno por serie, uno solo, o ninguno.
+  // Qué colores se eligen en el editor: uno por serie ("series"), uno por
+  // bloque o destino ("items": treemap y Sankey), uno solo, o ninguno.
   const SERIES_TYPES = ['bar_comparison', 'line', 'bar_line', 'stacked_area', 'bump', 'stacked_bar', 'stacked_bar_100', 'scatter', 'dumbbell'];
-  Object.entries(SPECS).forEach(([k, s]) => { s.colorMode = k === 'gauge' ? 'none' : (SERIES_TYPES.includes(k) ? 'series' : 'single'); });
-  // Cuántas series tiene un gráfico según sus datos (para mostrar un selector de color por serie).
-  window.chartSeriesCount = function (chartType, parsed) {
-    if (chartType === 'scatter') return new Set(parsed.rows.map(r => r[0])).size || 1;
-    if (chartType === 'dumbbell') return 2;
-    return Math.max(1, parsed.series.length);
+  const ITEM_TYPES = ['treemap', 'sankey'];
+  Object.entries(SPECS).forEach(([k, s]) => { s.colorMode = k === 'gauge' ? 'none' : (SERIES_TYPES.includes(k) ? 'series' : (ITEM_TYPES.includes(k) ? 'items' : 'single')); });
+  const MAX_COLORS = 24;
+  // Los "lugares" de color de un gráfico según sus datos: el nombre de cada
+  // serie (o bloque, o destino), en el mismo orden en que se dibujan. El
+  // índice de cada uno es el que se usa en def.colors y el que reciben los
+  // clics sobre el gráfico (onSeriesClick).
+  window.chartColorSlots = function (chartType, parsed, names) {
+    names = names || [];
+    const spec = SPECS[chartType] || SPECS.bar_comparison;
+    const rows = parsed.rows || [];
+    if (spec.colorMode === 'none') return [];
+    if (spec.colorMode === 'single') return ['Color principal'];
+    let out;
+    if (chartType === 'scatter') out = [...new Set(rows.map(r => r[0]).filter(Boolean))];
+    else if (chartType === 'dumbbell') out = [names[0] || 'A', names[1] || 'B'];
+    else if (chartType === 'treemap') out = rows.filter(r => num(r[1]) > 0).map(r => r[0]);
+    else if (chartType === 'sankey') out = [...new Set(rows.filter(r => (r.length >= 3 && r[2] !== '') ? num(r[2]) > 0 : num(r[1]) > 0)
+      .map(r => (r.length >= 3 && r[2] !== '') ? r[1] : r[0]).filter(Boolean))];
+    else { const n = Math.max(1, parsed.series.length); out = []; for (let i = 0; i < n; i++) out.push(names[i] || ('Serie ' + (i + 1))); }
+    if (!out.length) out = ['Serie 1'];
+    return out.slice(0, MAX_COLORS);
   };
+  window.chartSeriesCount = (chartType, parsed) => window.chartColorSlots(chartType, parsed, []).length || 1;
   window.CHART_SPECS = SPECS;
   window.CHART_GROUPS = GROUPS;
 
@@ -205,13 +245,34 @@
     container.innerHTML = html;
     return null;
   }
-  const legendRow = items => '<div class="legend-row">' + items.map(([c, t]) => `<span><span class="dot" style="background:${c}"></span>${esc(t)}</span>`).join('') + '</div>';
+  // Leyenda a mano para los gráficos en HTML: [color, texto, índice de color]
+  // (el índice va en data-si para que el editor sepa qué color se tocó).
+  const legendRow = items => '<div class="legend-row">' + items.map(([c, t, si]) => `<span${si !== undefined ? ` data-si="${si}"` : ''}><span class="dot" style="background:${c}"></span>${esc(t)}</span>`).join('') + '</div>';
   const seriesName = (def, i, fallback) => (def.series_names && def.series_names[i]) || fallback || ('Serie ' + (i + 1));
   const widthOf = c => Math.max(c.clientWidth || 600, 320);
 
-  function baseOptions(animate) {
-    return { responsive: true, maintainAspectRatio: false, animation: animate ? undefined : false,
+  // Opciones comunes de Chart.js. Si el que dibuja pasó onSeriesClick (el
+  // editor), un clic sobre una barra, punto o nombre de la leyenda avisa qué
+  // serie se tocó: cada dataset lleva su índice de color en "_si" (-1 = no
+  // elegible, ej. la línea y = x del scatter). Sin onSeriesClick (el post
+  // público) no cambia nada: la leyenda sigue ocultando series al tocarla.
+  function baseOptions(o) {
+    const opt = { responsive: true, maintainAspectRatio: false, animation: o.animate ? undefined : false,
       plugins: { legend: { position: 'top', labels: { boxWidth: 10 } } }, scales: {} };
+    if (o.onSeriesClick) {
+      const slot = (chart, idx) => { const ds = chart.data.datasets[idx]; return ds && ds._si !== undefined ? ds._si : idx; };
+      opt.onClick = (evt, els, chart) => {
+        let hit = els[0];
+        if (!hit) {   // líneas finas: vale el punto más cercano si está a menos de 28 px
+          const near = chart.getElementsAtEventForMode(evt.native, 'nearest', { intersect: false, axis: 'xy' }, false)[0];
+          if (near && Math.hypot(near.element.x - evt.x, near.element.y - evt.y) < 28) hit = near;
+        }
+        if (hit) { const i = slot(chart, hit.datasetIndex); if (i >= 0) o.onSeriesClick(i, evt.native); }
+      };
+      opt.onHover = (evt, els) => { if (evt.native && evt.native.target) evt.native.target.style.cursor = els.length ? 'pointer' : ''; };
+      opt.plugins.legend.onClick = (evt, item, legend) => { const i = slot(legend.chart, item.datasetIndex); if (i >= 0) o.onSeriesClick(i, evt.native); };
+    }
+    return opt;
   }
   const axis = (title, extra) => Object.assign({ grid: { color: GRID } }, title ? { title: { display: true, text: title } } : {}, extra || {});
   const noGrid = extra => Object.assign({ grid: { display: false } }, extra || {});
@@ -220,67 +281,67 @@
 
   // ---- Chart.js -------------------------------------------------------------
   R.bar_comparison = (c, def, P, o) => {
-    const opt = baseOptions(o.animate);
+    const opt = baseOptions(o);
     opt.scales = { y: axis(def.options.y_title), x: noGrid() };
     return new Chart(canvasIn(c), { type: 'bar', options: opt, data: { labels: def.labels,
-      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s, backgroundColor: P[i % P.length] })) } });
+      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s, backgroundColor: P[i % P.length], _si: i })) } });
   };
   R.bar_horizontal = (c, def, P, o) => {
     let pairs = def.labels.map((l, i) => [l, def.series[0] ? def.series[0][i] : null]);
     if (yes(def.options.sort)) pairs = pairs.slice().sort((a, b) => (b[1] || 0) - (a[1] || 0));
-    const opt = baseOptions(o.animate); opt.indexAxis = 'y'; opt.plugins.legend.display = false;
+    const opt = baseOptions(o); opt.indexAxis = 'y'; opt.plugins.legend.display = false;
     opt.scales = { x: axis(def.series_names[0]), y: noGrid() };
     return new Chart(canvasIn(c), { type: 'bar', options: opt, data: { labels: pairs.map(p => p[0]),
-      datasets: [{ data: pairs.map(p => p[1]), backgroundColor: P[0] }] } });
+      datasets: [{ data: pairs.map(p => p[1]), backgroundColor: P[0], _si: 0 }] } });
   };
   R.diverging_bar = (c, def, P, o) => {
     const vals = def.series[0] || [];
-    const opt = baseOptions(o.animate); opt.indexAxis = 'y'; opt.plugins.legend.display = false;
+    const opt = baseOptions(o); opt.indexAxis = 'y'; opt.plugins.legend.display = false;
     opt.scales = { x: axis(def.series_names[0]), y: noGrid() };
     return new Chart(canvasIn(c), { type: 'bar', options: opt, data: { labels: def.labels,
-      datasets: [{ data: vals, backgroundColor: vals.map(v => (v || 0) < 0 ? '#A63D2F' : P[0]) }] } });
+      datasets: [{ data: vals, backgroundColor: vals.map(v => (v || 0) < 0 ? '#A63D2F' : P[0]), _si: 0 }] } });
   };
   R.scatter = (c, def, P, o) => {
     const groups = new Map();
     def.rows.forEach(r => { const x = num(r[1]), y = num(r[2]); if (x == null || y == null) return;
       const k = r[0] || 'Serie'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push({ x, y }); });
-    const ds = [...groups.entries()].map(([k, pts], i) => ({ label: k, data: pts, backgroundColor: P[i % P.length], pointRadius: 6 }));
+    const ds = [...groups.entries()].map(([k, pts], i) => ({ label: k, data: pts, backgroundColor: P[i % P.length], pointRadius: 6, _si: i }));
     if (yes(def.options.diagonal)) {
       const m = Math.max(0, ...[...groups.values()].flat().flatMap(p => [p.x, p.y])) * 1.05;
-      ds.push({ label: 'y = x', data: [{ x: 0, y: 0 }, { x: m, y: m }], type: 'line', borderColor: '#999', borderDash: [4, 4], borderWidth: 1.3, pointRadius: 0, fill: false });
+      ds.push({ label: 'y = x', data: [{ x: 0, y: 0 }, { x: m, y: m }], type: 'line', borderColor: '#999', borderDash: [4, 4], borderWidth: 1.3, pointRadius: 0, fill: false, _si: -1 });
     }
-    const opt = baseOptions(o.animate);
+    const opt = baseOptions(o);
     opt.scales = { x: axis(def.series_names[0]), y: axis(def.series_names[1]) };
     return new Chart(canvasIn(c), { type: 'scatter', options: opt, data: { datasets: ds } });
   };
   R.line = (c, def, P, o) => {
-    const opt = baseOptions(o.animate);
+    const opt = baseOptions(o);
     opt.scales = { y: axis(def.options.y_title), x: noGrid() };
     return new Chart(canvasIn(c), { type: 'line', options: opt, data: { labels: def.labels,
-      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s, borderColor: P[i % P.length], backgroundColor: 'transparent', borderWidth: 2.2, pointRadius: 2, tension: 0.2 })) } });
+      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s, borderColor: P[i % P.length], backgroundColor: 'transparent', borderWidth: 2.2, pointRadius: 2, tension: 0.2, _si: i })) } });
   };
   R.bar_line = (c, def, P, o) => {
     const n = def.series.length;
     const ds = def.series.map((s, i) => (n > 1 && i === n - 1)
-      ? { type: 'line', label: seriesName(def, i), data: s, borderColor: EXTRA[0], backgroundColor: EXTRA[0], borderWidth: 2.2, pointRadius: 3, tension: 0.2, yAxisID: 'y2', order: 1 }
-      : { type: 'bar', label: seriesName(def, i), data: s, backgroundColor: P[i % P.length], yAxisID: 'y', order: 2 });
-    const opt = baseOptions(o.animate);
+      ? { type: 'line', label: seriesName(def, i), data: s, borderColor: P[i % P.length], backgroundColor: P[i % P.length], borderWidth: 2.2, pointRadius: 3, tension: 0.2, yAxisID: 'y2', order: 1, _si: i }
+      : { type: 'bar', label: seriesName(def, i), data: s, backgroundColor: P[i % P.length], yAxisID: 'y', order: 2, _si: i });
+    const opt = baseOptions(o);
     opt.scales = { x: noGrid(), y: axis(def.options.y_title, { position: 'left' }) };
     if (n > 1) opt.scales.y2 = axis(def.options.y2_title, { position: 'right', grid: { drawOnChartArea: false } });
     return new Chart(canvasIn(c), { type: 'bar', options: opt, data: { labels: def.labels, datasets: ds } });
   };
   R.stacked_area = (c, def, P, o) => {
-    const opt = baseOptions(o.animate);
+    const opt = baseOptions(o);
     opt.scales = { y: axis(def.options.y_title, { stacked: true }), x: noGrid({ ticks: { maxTicksLimit: 12 } }) };
     return new Chart(canvasIn(c), { type: 'line', options: opt, data: { labels: def.labels,
-      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s, borderColor: P[i % P.length], backgroundColor: rgba(P[i % P.length], 0.55), fill: true, borderWidth: 1, pointRadius: 0 })) } });
+      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s, borderColor: P[i % P.length], backgroundColor: rgba(P[i % P.length], 0.55), fill: true, borderWidth: 1, pointRadius: 0, _si: i })) } });
   };
   R.bump = (c, def, P, o) => {
     const maxRank = Math.max(def.series.length, ...def.series.flat().filter(v => v != null), 1);
-    const opt = baseOptions(o.animate);
+    const opt = baseOptions(o);
     opt.scales = { x: noGrid(), y: axis(null, { reverse: true, min: 1, max: maxRank, ticks: { stepSize: 1, callback: v => '#' + v } }) };
     return new Chart(canvasIn(c), { type: 'line', options: opt, data: { labels: def.labels,
-      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s, borderColor: P[i % P.length], backgroundColor: P[i % P.length], borderWidth: 2.2, pointRadius: 4, tension: 0.15 })) } });
+      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s, borderColor: P[i % P.length], backgroundColor: P[i % P.length], borderWidth: 2.2, pointRadius: 4, tension: 0.15, _si: i })) } });
   };
   R.waterfall = (c, def, P, o) => {
     const vals = def.series[0] || [];
@@ -294,23 +355,23 @@
     }
     bars.push([0, level]); colors.push(EXTRA[2]); shown.push(level);
     const labels = def.labels.concat([def.options.total_label || 'Total']);
-    const opt = baseOptions(o.animate); opt.plugins.legend.display = false;
+    const opt = baseOptions(o); opt.plugins.legend.display = false;
     opt.plugins.tooltip = { callbacks: { label: ctx => fmt(shown[ctx.dataIndex]) } };
     opt.scales = { y: axis(def.options.y_title), x: noGrid() };
-    return new Chart(canvasIn(c), { type: 'bar', options: opt, data: { labels, datasets: [{ data: bars, backgroundColor: colors }] } });
+    return new Chart(canvasIn(c), { type: 'bar', options: opt, data: { labels, datasets: [{ data: bars, backgroundColor: colors, _si: 0 }] } });
   };
   R.stacked_bar = (c, def, P, o) => {
-    const opt = baseOptions(o.animate);
+    const opt = baseOptions(o);
     opt.scales = { x: noGrid({ stacked: true }), y: axis(def.options.y_title, { stacked: true }) };
     return new Chart(canvasIn(c), { type: 'bar', options: opt, data: { labels: def.labels,
-      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s, backgroundColor: P[i % P.length] })) } });
+      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s, backgroundColor: P[i % P.length], _si: i })) } });
   };
   R.stacked_bar_100 = (c, def, P, o) => {
     const totals = def.labels.map((_, i) => def.series.reduce((s, ser) => s + (ser[i] || 0), 0));
-    const opt = baseOptions(o.animate);
+    const opt = baseOptions(o);
     opt.scales = { x: noGrid({ stacked: true }), y: axis('%', { stacked: true, max: 100 }) };
     return new Chart(canvasIn(c), { type: 'bar', options: opt, data: { labels: def.labels,
-      datasets: def.series.map((s, k) => ({ label: seriesName(def, k), data: s.map((v, i) => totals[i] ? (v || 0) / totals[i] * 100 : null), backgroundColor: P[k % P.length] })) } });
+      datasets: def.series.map((s, k) => ({ label: seriesName(def, k), data: s.map((v, i) => totals[i] ? (v || 0) / totals[i] * 100 : null), backgroundColor: P[k % P.length], _si: k })) } });
   };
   R.fan_chart = (c, def, P, o) => {
     const real = (def.series[0] || []).slice(), pred = (def.series[1] || []).slice();
@@ -330,12 +391,12 @@
     const alphas = [0.32, 0.20, 0.12];
     const ds = [];
     for (let k = bands.length - 1; k >= 0; k--) {   // la banda más ancha abajo, la angosta arriba
-      ds.push({ label: '_hi' + k, data: bands[k].hi, borderWidth: 0, pointRadius: 0, fill: false });
-      ds.push({ label: bands[k].name, data: bands[k].lo, borderWidth: 0, pointRadius: 0, fill: '-1', backgroundColor: rgba(P[0], alphas[k]) });
+      ds.push({ label: '_hi' + k, data: bands[k].hi, borderWidth: 0, pointRadius: 0, fill: false, _si: -1 });
+      ds.push({ label: bands[k].name, data: bands[k].lo, borderWidth: 0, pointRadius: 0, fill: '-1', backgroundColor: rgba(P[0], alphas[k]), _si: 0 });
     }
-    ds.push({ label: seriesName(def, 1, 'Pronóstico'), data: pred, borderColor: P[0], borderDash: [5, 4], borderWidth: 2, pointRadius: 0 });
-    ds.push({ label: seriesName(def, 0, 'Real'), data: real, borderColor: P[0], borderWidth: 2.2, pointRadius: 0 });
-    const opt = baseOptions(o.animate);
+    ds.push({ label: seriesName(def, 1, 'Pronóstico'), data: pred, borderColor: P[0], borderDash: [5, 4], borderWidth: 2, pointRadius: 0, _si: 0 });
+    ds.push({ label: seriesName(def, 0, 'Real'), data: real, borderColor: P[0], borderWidth: 2.2, pointRadius: 0, _si: 0 });
+    const opt = baseOptions(o);
     opt.plugins.legend.labels.filter = item => !String(item.text).startsWith('_');
     opt.scales = { x: noGrid({ ticks: { maxTicksLimit: 10 } }), y: axis(def.options.y_title) };
     return new Chart(canvasIn(c), { type: 'line', options: opt, data: { labels: def.labels, datasets: ds } });
@@ -356,10 +417,10 @@
       const y = i * rowH + rowH / 2 + 6, va = a[i], vb = b[i];
       svg += `<text x="${padL - 10}" y="${y + 4}" text-anchor="end" font-size="11" fill="${SOFT}">${esc(lab)}</text>`;
       if (va != null && vb != null) svg += `<line x1="${xs(va)}" y1="${y}" x2="${xs(vb)}" y2="${y}" stroke="#CFC9B8" stroke-width="3"/>`;
-      if (va != null) svg += `<circle cx="${xs(va)}" cy="${y}" r="6" fill="${P[0]}"><title>${esc(nA)}: ${fmt(va)}</title></circle>`;
-      if (vb != null) svg += `<circle cx="${xs(vb)}" cy="${y}" r="6" fill="${P[1]}"><title>${esc(nB)}: ${fmt(vb)}</title></circle>`;
+      if (va != null) svg += `<circle cx="${xs(va)}" cy="${y}" r="6" fill="${P[0]}" data-si="0"><title>${esc(nA)}: ${fmt(va)}</title></circle>`;
+      if (vb != null) svg += `<circle cx="${xs(vb)}" cy="${y}" r="6" fill="${P[1]}" data-si="1"><title>${esc(nB)}: ${fmt(vb)}</title></circle>`;
     });
-    return htmlIn(c, legendRow([[P[0], nA], [P[1], nB]]) + svg + '</svg>');
+    return htmlIn(c, legendRow([[P[0], nA, 0], [P[1], nB, 1]]) + svg + '</svg>');
   };
   R.heatmap = (c, def, P) => {
     if (!def.series.length) return htmlIn(c, '');
@@ -386,7 +447,7 @@
     const unit = def.options.unit || '';
     let html = '<div style="display:flex; flex-wrap:wrap; gap:3px; min-height:240px;">';
     items.forEach((d, i) => { const pct = d.v / total * 100;
-      html += `<div title="${esc(d.name)}: ${fmt(d.v)} ${esc(unit)} (${pct.toFixed(1)}%)" style="flex:${pct} 1 ${pct}%; min-width:72px; min-height:64px; background:${P[i % P.length]}; color:#fff; display:flex; align-items:flex-end; padding:6px; font-size:10.5px; line-height:1.25;">${esc(d.name)}<br><b>${fmt(d.v)} ${esc(unit)}</b></div>`; });
+      html += `<div data-si="${i}" title="${esc(d.name)}: ${fmt(d.v)} ${esc(unit)} (${pct.toFixed(1)}%)" style="flex:${pct} 1 ${pct}%; min-width:72px; min-height:64px; background:${P[i % P.length]}; color:#fff; display:flex; align-items:flex-end; padding:6px; font-size:10.5px; line-height:1.25;">${esc(d.name)}<br><b>${fmt(d.v)} ${esc(unit)}</b></div>`; });
     return htmlIn(c, html + '</div>');
   };
   R.sankey = (c, def, P) => {
@@ -418,13 +479,13 @@
       const s = srcs.find(n => n.name === f.s), t = tgts.find(n => n.name === f.t);
       const h = f.v * k, sy = s.y + s.off, ty = t.y + t.off; s.off += h; t.off += h;
       const xa = x0 + bw, xb = x1, xm = (xa + xb) / 2;
-      svg += `<path d="M${xa},${sy} C${xm},${sy} ${xm},${ty} ${xb},${ty} L${xb},${ty + h} C${xm},${ty + h} ${xm},${sy + h} ${xa},${sy + h} Z" fill="${P[tgts.indexOf(t) % P.length]}" opacity="0.7"><title>${esc(f.s)} → ${esc(f.t)}: ${fmt(f.v)} ${esc(unit)}</title></path>`;
+      svg += `<path d="M${xa},${sy} C${xm},${sy} ${xm},${ty} ${xb},${ty} L${xb},${ty + h} C${xm},${ty + h} ${xm},${sy + h} ${xa},${sy + h} Z" fill="${P[tgts.indexOf(t) % P.length]}" opacity="0.7" data-si="${tgts.indexOf(t)}"><title>${esc(f.s)} → ${esc(f.t)}: ${fmt(f.v)} ${esc(unit)}</title></path>`;
     });
     srcs.forEach(n => { svg += `<rect x="${x0}" y="${n.y}" width="${bw}" height="${n.h}" fill="#333"/><text x="${x0 - 8}" y="${n.y + n.h / 2 + 4}" text-anchor="end" font-size="11.5" fill="${INK}">${esc(label(n))}</text>`; });
     let last = -Infinity;
     tgts.forEach((n, i) => {   // etiquetas separadas al menos 15px para que no se pisen
       const cy = Math.max(n.y + n.h / 2, last + 15); last = cy;
-      svg += `<rect x="${x1}" y="${n.y}" width="${bw}" height="${n.h}" fill="${P[i % P.length]}"/>`;
+      svg += `<rect x="${x1}" y="${n.y}" width="${bw}" height="${n.h}" fill="${P[i % P.length]}" data-si="${i}"/>`;
       if (Math.abs(cy - (n.y + n.h / 2)) > 1) svg += `<line x1="${x1 + bw}" y1="${n.y + n.h / 2}" x2="${x1 + bw + 6}" y2="${cy}" stroke="#999" stroke-width="1"/>`;
       svg += `<text x="${x1 + bw + 10}" y="${cy + 4}" font-size="11.5" fill="${INK}">${esc(label(n))}</text>`;
     });
@@ -506,15 +567,16 @@
     if (!def.rows) def.rows = def.labels.map((l, i) => [l].concat(def.series.map(s => s[i])));
     const spec = SPECS[def.chart_type] || SPECS.bar_comparison;
     const fn = R[SPECS[def.chart_type] ? def.chart_type : 'bar_comparison'];
-    // Colores por serie: los elegidos en el editor (def.colors, claves de la
-    // paleta); donde no haya elección, el color principal y luego los extra.
-    const main = PALETTE[def.color] ? PALETTE[def.color].hex : (accentHex[def.color] || '#C1622E');
+    // Colores por serie: los elegidos en el editor (def.colors: claves de la
+    // paleta o "#RRGGBB"); donde no haya elección, el principal y luego los extra.
+    const main = colorHex(def.color) || accentHex[def.color] || '#C1622E';
     const defaults = [main].concat(EXTRA.filter(x => x.toLowerCase() !== main.toLowerCase()));
     const chosen = Array.isArray(def.colors) ? def.colors : [];
     const P = [];
     for (let i = 0; i < Math.max(defaults.length, chosen.length); i++) {
-      P.push(chosen[i] && PALETTE[chosen[i]] ? PALETTE[chosen[i]].hex : (defaults[i] || EXTRA[i % EXTRA.length]));
+      P.push((chosen[i] && colorHex(chosen[i])) || defaults[i] || EXTRA[i % EXTRA.length]);
     }
+    const onSeriesClick = typeof opts.onSeriesClick === 'function' ? opts.onSeriesClick : null;
     if (spec.kind === 'canvas') {
       if (typeof Chart === 'undefined') return null;
       Chart.defaults.font.family = "Georgia, 'Times New Roman', serif";
@@ -523,10 +585,20 @@
       // Alto a medida (opción "height"); si no, el de la hoja de estilos.
       const h = parseInt(def.options.height, 10);
       container.style.height = (h >= 120 && h <= 1200) ? h + 'px' : '';
+      container.onclick = null;
     } else {
       container.style.height = '';
+      // En los gráficos de HTML/SVG el clic se resuelve acá: el elemento
+      // tocado lleva data-si; si no lo lleva y el tipo tiene un solo color,
+      // cualquier clic es sobre ese color.
+      container.onclick = onSeriesClick ? (e => {
+        const t = e.target && e.target.closest ? e.target.closest('[data-si]') : null;
+        const i = t ? parseInt(t.dataset.si, 10) : (spec.colorMode === 'single' ? 0 : -1);
+        if (i >= 0) onSeriesClick(i, e);
+      }) : null;
     }
-    return fn(container, def, P, { animate: opts.animate !== false });
+    container.classList.toggle('pickable', !!onSeriesClick);
+    return fn(container, def, P, { animate: opts.animate !== false, onSeriesClick });
   };
 
   // ---- copiar / descargar una tarjeta de gráfico como PNG ------------------

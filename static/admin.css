@@ -59,7 +59,17 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .editor-bar .swatches{display:flex; gap:6px; align-items:center; margin-right:6px;}
 .editor-bar .swatch{width:18px; height:18px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0;}
 .editor-bar .swatch.on{border-color:#fff; box-shadow:0 0 0 1px var(--ink);}
-.editor-hint{font-family:'Courier New',monospace; font-size:11.5px; color:var(--ink-soft); background:var(--paper-2); padding:7px 4vw; border-bottom:1px solid var(--line);}
+/* guía: fila de progreso siempre visible + pasos que se pueden ocultar */
+.editor-guide{font-family:'Courier New',monospace; font-size:11.5px; color:var(--ink-soft); background:var(--paper-2); padding:7px 4vw; border-bottom:1px solid var(--line);}
+.guide-top{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+.guide-progress{display:flex; gap:10px; flex-wrap:wrap; flex:1;}
+.guide-progress span{white-space:nowrap;}
+.guide-progress .done{color:#1B6B33;}
+.guide-progress .todo{color:var(--ink-soft);}
+.guide-toggle{background:none; border:0; padding:0; font:inherit; color:var(--blue); text-decoration:underline; cursor:pointer; white-space:nowrap;}
+.guide-steps{font-family:Georgia,serif; font-size:13.5px; color:var(--ink); line-height:1.5; margin:10px 0 4px; padding-left:22px; max-width:90ch;}
+.guide-steps li{margin-bottom:5px;}
+.guide-steps li::marker{font-family:'Courier New',monospace; color:var(--accent, var(--blue)); font-weight:700;}
 .editor .flash{margin:12px 4vw 0;}
 
 /* campos editables */
@@ -81,7 +91,9 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .blk-tools .sw.on{border-color:var(--ink);}
 .blk-tools .fmt{display:inline-flex; gap:4px; margin-right:6px;}
 .blk .p-ed{min-height:2.6em;}
-.editor-empty{padding:40px 0; color:#B9B3A7; font-style:italic;}
+.editor-empty{padding:36px 20px; margin:8px 0; text-align:center; color:var(--ink-soft); border:1px dashed var(--line); background:#fdfdfb;}
+.editor-empty p{margin:0 0 12px; font-style:italic; color:#9A948A;}
+.editor-empty small{display:block; margin-top:8px; font-size:12px; color:#9A948A;}
 .blk-msg{font-family:'Courier New',monospace; font-size:11.5px; color:var(--rust); margin-top:6px;}
 
 /* gráfico: panel de datos debajo del canvas */
@@ -93,12 +105,37 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .chart-data textarea{width:100%; min-height:96px; font-family:inherit; font-size:12.5px; padding:8px; border:1px solid var(--line); background:#fdfdfb; resize:vertical; line-height:1.5;}
 .chart-data .hint{font-size:11px; font-style:italic; font-family:Georgia,serif; margin-top:4px;}
 .chart-data .copts input[type=text]{flex:0 1 220px; min-width:120px;}
-.chart-data .cswatch{display:inline-flex; align-items:center; gap:5px; margin-right:6px;}
-.chart-data .cswatch small{font-size:10px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.03em; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.chart-data .cswatch .dot{width:13px; height:13px; border-radius:50%; border:1px solid rgba(0,0,0,.18); flex:0 0 auto;}
-.chart-data .cswatch select{font-size:11.5px;}
+.chart-data .cexample{background:#fff; border:1px solid var(--line); font-family:inherit; font-size:11px; padding:4px 9px; cursor:pointer; color:var(--ink);}
+.chart-data .cexample:hover{border-color:var(--accent, var(--blue)); color:var(--accent, var(--blue));}
+/* un botón por color: círculo + nombre de la serie; abre la paleta */
+.chart-data .cswatch{display:inline-flex; align-items:center; gap:6px; margin-right:4px; padding:3px 8px 3px 4px; background:#fff; border:1px solid var(--line); border-radius:14px; font-family:inherit; cursor:pointer; color:var(--ink);}
+.chart-data .cswatch:hover{border-color:var(--accent, var(--blue));}
+.chart-data .cswatch small{font-size:10px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.03em; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.chart-data .cswatch .dot{width:14px; height:14px; border-radius:50%; border:1px solid rgba(0,0,0,.18); flex:0 0 auto;}
+.chart-data .chelp{font-size:10.5px; font-style:italic; font-family:Georgia,serif; color:#9A948A;}
 .chart-data .ccols{font-size:11px; color:var(--ink); margin:2px 0 6px; padding:5px 8px; background:var(--paper-2); border-left:3px solid var(--accent, var(--blue));}
-.chart-empty{height:200px; display:flex; align-items:center; justify-content:center; text-align:center; padding:0 20px; color:#B9B3A7; font-style:italic; border:1px dashed var(--line);}
+.chart-empty{min-height:200px; display:flex; align-items:center; justify-content:center; text-align:center; padding:16px 20px; color:#B9B3A7; font-style:italic; border:1px dashed var(--line); line-height:1.6;}
+.chart-empty .linklike{margin:0 4px;}
+/* en el editor, las series se pueden tocar (cursor de mano) */
+.chart-wrap.pickable [data-si]{cursor:pointer;}
+.chart-wrap.pickable .legend-row [data-si]:hover{text-decoration:underline;}
+
+/* paleta emergente */
+.cpop{position:fixed; z-index:100; width:344px; max-width:calc(100vw - 16px); max-height:calc(100vh - 16px); overflow:auto; background:#fff; border:1px solid var(--line); box-shadow:0 8px 28px rgba(0,0,0,.18); padding:10px 12px 12px; font-family:'Courier New',monospace; font-size:11px; color:var(--ink);}
+.cpop-head{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; font-size:11.5px;}
+.cpop-head b{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cpop-close{background:none; border:0; font:inherit; cursor:pointer; color:var(--ink-soft); padding:2px 4px;}
+.cpop-close:hover{color:var(--ink);}
+.cpop-group{margin-bottom:6px;}
+.cpop-glbl{font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); margin:4px 0 3px;}
+.cpop-grid{display:flex; flex-wrap:wrap; gap:5px;}
+.cpop-sw{width:24px; height:24px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.15); cursor:pointer; padding:0;}
+.cpop-sw:hover{transform:scale(1.15);}
+.cpop-sw.on{box-shadow:0 0 0 2px var(--ink);}
+.cpop-custom{display:flex; align-items:center; gap:8px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line);}
+.cpop-custom label{font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft);}
+.cpop-custom input[type=color]{width:38px; height:26px; padding:0; border:1px solid var(--line); background:#fff; cursor:pointer;}
+.cpop-custom .cpop-hex{width:84px; font-family:inherit; font-size:11px; padding:4px 6px; border:1px solid var(--line); background:#fdfdfb; text-transform:uppercase;}
 
 /* imagen */
 .img-area{position:relative;}
@@ -125,7 +162,10 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .ins button{background:#fff; border:1px solid var(--line); font-family:inherit; font-size:11px; padding:2px 7px; cursor:pointer; color:var(--ink);}
 .ins button:hover{border-color:var(--accent, var(--blue)); color:var(--accent, var(--blue));}
 
-/* agregar bloque */
-.add-bar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:18px 0 40px; border-top:1px dashed var(--line); margin-top:16px; font-family:'Courier New',monospace; font-size:12px; color:var(--ink-soft);}
-.add-bar button{background:#fff; border:1px solid var(--line); padding:7px 12px; font-family:inherit; font-size:12px; cursor:pointer; color:var(--ink);}
+/* agregar bloque: cada botón dice qué es y para qué sirve */
+.add-bar{display:flex; gap:8px; flex-wrap:wrap; align-items:stretch; padding:18px 0 40px; border-top:1px dashed var(--line); margin-top:16px; font-family:'Courier New',monospace; font-size:12px; color:var(--ink-soft);}
+.add-bar .add-lbl{align-self:center; width:100%;}
+.add-bar button{background:#fff; border:1px solid var(--line); padding:8px 12px; font-family:inherit; font-size:12px; cursor:pointer; color:var(--ink); text-align:left; display:flex; flex-direction:column; gap:2px; min-width:150px; flex:1 1 150px; max-width:220px;}
+.add-bar button b{font-weight:700;}
+.add-bar button small{font-family:Georgia,serif; font-style:italic; font-size:11px; color:var(--ink-soft);}
 .add-bar button:hover{border-color:var(--accent, var(--blue)); color:var(--accent, var(--blue));}

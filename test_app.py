@@ -135,7 +135,7 @@ ok(save({"title": "x", "blocks": []}, client=anon).status_code == 302, "guardar 
 ok(c.post("/admin/posts/9999/save", data="{}", content_type="application/json").status_code == 404, "guardar post inexistente -> 404")
 
 # --- tipos de gráfico: filas crudas, opciones, tipo desconocido -----------
-r = save({**GENERAL, "blocks": [
+BLOCKS2 = [
     {"type": "chart", "data": {"chart_type": "scatter", "table": "Crudo | 959.1 | 1172\nGas | 30.4 | 52",
                                "series_names": "Energía, INDEC", "options": {"diagonal": "si", "Clave Rara!": "x", "y_title": None, "unit": ""}}},
     {"type": "chart", "data": {"chart_type": "sankey", "table": "Gas 2025 | Chile | 340.8\nGas 2025 | Uruguay | 5.1"}},
@@ -150,13 +150,21 @@ r = save({**GENERAL, "blocks": [
                                     {"chart_type": "line", "table": "de más | 1"}]}},
     {"type": "figure", "data": {"title": "Figura vacía", "panels": [{"chart_type": "line", "table": ""}]}},
     {"type": "chart", "data": {"chart_type": "bar_comparison", "title": "Con nota", "note": "Nota al pie del gráfico simple.", "table": "a | 1"}},
-    {"type": "chart", "data": {"chart_type": "line", "title": "Colores", "color": "pastel_orange", "colors": ["pastel_orange", "navy", "Mal!", "gold"],
-                               "table": "a | 1 | 2 | 3 | 4"}},
+    {"type": "chart", "data": {"chart_type": "line", "title": "Colores", "color": "pastel_orange",
+                               "colors": ["pastel_orange", "navy", "Mal!", "gold", "#1A2B3c", "#12345", "#GGGGGG"],
+                               "table": "a | 1 | 2 | 3 | 4 | 5 | 6 | 7"}},
     {"type": "paragraph", "data": {"text": "Ver [el informe](https://indec.gob.ar/x?a=1&b=2) y www.enargas.gob.ar. Nada de javascript:alert(1) ni <a href=x>."}},
-]})
+]
+r = save({**GENERAL, "blocks": BLOCKS2})
 bl = blocks()
-ok(bl[8]["data"]["color"] == "pastel_orange" and bl[8]["data"]["colors"] == ["pastel_orange", "navy", "", "gold"],
-   "color por serie: se guardan las claves de la paleta, las inválidas quedan vacías (color por defecto)")
+ok(bl[8]["data"]["color"] == "pastel_orange" and bl[8]["data"]["colors"] == ["pastel_orange", "navy", "", "gold", "#1a2b3c", "", ""],
+   "color por serie: claves de la paleta o #RRGGBB libre (en minúsculas); lo inválido queda vacío (color por defecto)")
+r = save({**GENERAL, "blocks": [{"type": "chart", "data": {"chart_type": "bar_comparison", "color": "#ABCDEF", "table": "a | 1",
+                                                            "colors": ["#%06x" % i for i in range(30)]}}]})
+ok(blocks()[0]["data"]["color"] == "#abcdef" and len(blocks()[0]["data"]["colors"]) == 24,
+   "color principal libre en #RRGGBB; la lista de colores se corta en 24")
+r = save({**GENERAL, "blocks": BLOCKS2})
+bl = blocks()
 ok(bl[0]["data"]["colors"] == [] and bl[0]["data"]["color"] == "orange", "gráfico sin colores elegidos: lista vacía y principal por defecto")
 fig = bl[5]["data"]
 ok(bl[5]["type"] == "figure" and len(fig["panels"]) == 3 and fig["panels"][0]["labels"] == ["2018", "2019", "2020"]
@@ -180,7 +188,13 @@ ok('class="figure-grid cols-2"' in html and f'id="chart-{fid}-0"' in html and f'
 ok("Figura vacía" not in html.split('id="comentarios"')[0].split("chart-card")[-1] and html.count("Figura sin datos") == 1,
    "figura sin ningún panel con datos: no se muestra (el admin ve el aviso)")
 ok('class="chart-note">Nota al pie del gráfico simple.' in html, "nota al pie en un gráfico simple")
-ok('"colors": ["pastel_orange", "navy", "", "gold"]' in html, "el post recibe los colores por serie para charts.js")
+ok('"colors": ["pastel_orange", "navy", "", "gold", "#1a2b3c", "", ""]' in html, "el post recibe los colores por serie para charts.js")
+ok(html.count('<a data-net=') == 3 and html.count("<svg") >= 4 and 'aria-label="Compartir en LinkedIn"' in html
+   and '<span class="lbl">Copiar link</span>' in html, "compartir: logo de X, LinkedIn y WhatsApp más el botón de copiar con ícono")
+js = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "charts.js"), encoding="utf-8").read()
+ok(all(g in js for g in ["group('Institucional'", "group('Vivos'", "group('Pastel'", "group('Tierra'", "group('Oscuros'", "group('Grises'"])
+   and js.count("', '#") >= 60 and "window.chartColorSlots" in js and "onSeriesClick" in js and "data-si=" in js,
+   "charts.js: paleta de 60+ colores en 6 grupos, colores por serie/bloque y clic sobre la serie (onSeriesClick, data-si)")
 ok('<a href="https://indec.gob.ar/x?a=1&amp;b=2" target="_blank" rel="noopener">el informe</a>' in html
    and '<a href="http://www.enargas.gob.ar" target="_blank" rel="noopener">www.enargas.gob.ar</a>.' in html
    and 'href="javascript' not in html and '<a href=x>' not in html and "&lt;a href=x&gt;" in html,
