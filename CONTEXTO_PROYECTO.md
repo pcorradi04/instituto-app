@@ -521,6 +521,25 @@ entre turnos. Estado al cierre de esa ronda:
   desde cdnjs, carga perezosa; `cellDates` → fechas como AAAA-MM-DD;
   selector de hoja si hay varias) y "Plantilla Excel" (`spec.header` por
   tipo + filas del placeholder, `XLSX.writeFile`). Tests: 127 chequeos.
+- **15 sep 2026 (noche, 2)** — Pedro mandó una captura de su Excel de
+  balance de gas y pidió "que el modelo de Excel del Sankey sea algo así":
+  dos bloques lado a lado, entradas (Origen | Concepto | Valor: TGS, TGN,
+  GPNK, FST → Oferta nacional; Bolivia, Chile, GNL → Importación) y
+  salidas (Origen del Destino | Destino | Concepto | Valor: Oferta
+  nacional → Demanda Interna → Demanda prioritaria/Usinas/…; → Exportaciones
+  → Chile/Uruguay/Brasil). (1) El Sankey pasó a ser de varios niveles:
+  `sankeyFlows(rows, single)` lee cada fila como un camino de nombres con
+  el valor al final (compatible con "Destino | valor" + opción origin y con
+  "Origen | Destino | valor"), suma tramos repetidos; `R.sankey` calcula el
+  nivel de cada nodo (camino más largo desde un origen, relajación acotada),
+  arma columnas, escala por la columna más cargada, cintas coloreadas por
+  nodo destino (`data-si` = índice del destino, igual que antes; orígenes
+  puros en #333), etiquetas de columnas intermedias con halo blanco.
+  (2) `spec.template` (aoa) para el Sankey = el balance de Pedro en dos
+  bloques; `downloadTemplate` lo usa si existe. (3) `sankeyBlocks()` en el
+  editor reconoce el encabezado "Origen del Destino" al importar y convierte
+  a caminos (bloque 1 invertido: concepto → origen; "-" o 0 se omiten).
+  Placeholder / "Cargar ejemplo" del Sankey = el mismo balance en caminos.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

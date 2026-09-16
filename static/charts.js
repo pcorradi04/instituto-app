@@ -216,10 +216,29 @@
       columns: 'Nombre | valor', names: null,
       hint: 'Bloques de tamaño proporcional al valor (ej. participación por empresa).',
       placeholder: 'YPF | 574.1\nVista Oil & Gas | 569\nChevron Argentina | 407.3\nOtras (10+ empresas) | 515.9', options: [OPT_UNIT] },
-    sankey: { label: 'Sankey (flujos origen → destino)', group: 'Composición', kind: 'html',
-      columns: 'Destino | valor   (con un solo origen)   —o—   Origen | Destino | valor   (varios orígenes)', names: null,
-      hint: 'Cintas de origen a destino, de grosor proporcional al valor. Lo más simple: una fila por destino con "Destino | valor" y el nombre del origen en la opción de abajo. Si hay varios orígenes, tres columnas.',
-      placeholder: 'Chile | 340.8\nUruguay | 5.1\nBrasil | 2.5',
+    sankey: { label: 'Sankey (flujos origen → destino, con niveles)', group: 'Composición', kind: 'html',
+      columns: 'Origen | destino | ... | valor   (cada fila es un camino; el valor recorre todo el camino)   —o—   Destino | valor   (un solo origen)', names: null,
+      hint: 'Cintas de grosor proporcional al valor, con los niveles que hagan falta. Cada fila es un camino de nombres con el valor al final: "TGS | Oferta nacional | 74.1" (una entrada) o "Oferta nacional | Demanda interna | Usinas | 34.5" (una salida en dos pasos); los tramos que se repiten se suman. Lo más simple: "Destino | valor" y el nombre del origen en la opción de abajo. La plantilla Excel trae un balance de gas de ejemplo en dos bloques: entradas (Origen, Concepto, Valor) y salidas (Origen del Destino, Destino, Concepto, Valor).',
+      placeholder: 'TGS | Oferta nacional | 74.1\nTGN | Oferta nacional | 42.2\nGPNK | Oferta nacional | 23.3\nFST | Oferta nacional | 15.8\nBolivia | Importación | 4.3\nGNL | Importación | 5.8\nOferta nacional | Demanda interna | Demanda prioritaria | 65.8\nOferta nacional | Demanda interna | Usinas | 34.5\nOferta nacional | Demanda interna | Industrias | 32\nOferta nacional | Demanda interna | GNC | 5.5\nImportación | Demanda interna | Combustible | 3.8\nImportación | Demanda interna | Tierra del Fuego | 0.6\nImportación | Demanda interna | Retenido en PSL | 7\nOferta nacional | Demanda interna | Resto | 8.8\nOferta nacional | Exportaciones | Chile | 6.9\nOferta nacional | Exportaciones | Uruguay | 0.5',
+      // Plantilla Excel con la estructura de balance: dos bloques lado a lado.
+      // Bloque 1 (entradas): Origen | Concepto | Valor = el concepto entra al
+      // origen. Bloque 2 (salidas): Origen del Destino | Destino | Concepto |
+      // Valor = camino de tres nombres. El editor la reconoce por el
+      // encabezado "Origen del Destino" al importarla.
+      template: [
+        ['Origen', 'Concepto', 'Valor', 'Origen del Destino', 'Destino', 'Concepto', 'Valor'],
+        ['Oferta nacional', 'TGS', 74.1, 'Oferta nacional', 'Demanda Interna', 'Demanda prioritaria', 65.8],
+        ['Oferta nacional', 'TGN', 42.2, 'Oferta nacional', 'Demanda Interna', 'Usinas', 34.5],
+        ['Oferta nacional', 'GPNK', 23.3, 'Oferta nacional', 'Demanda Interna', 'Industrias', 32],
+        ['Oferta nacional', 'FST', 15.8, 'Oferta nacional', 'Demanda Interna', 'GNC', 5.5],
+        ['Importación', 'Bolivia', 4.3, 'Importación', 'Demanda Interna', 'Combustible', 3.8],
+        ['Importación', 'Chile', 0, 'Importación', 'Demanda Interna', 'Tierra del Fuego', 0.6],
+        ['Importación', 'GNL', 5.8, 'Importación', 'Demanda Interna', 'Retenido en PSL', 7],
+        ['', '', '', 'Oferta nacional', 'Demanda Interna', 'Resto', 8.8],
+        ['', '', '', 'Oferta nacional', 'Exportaciones', 'Chile', 6.9],
+        ['', '', '', 'Oferta nacional', 'Exportaciones', 'Uruguay', 0.5],
+        ['', '', '', 'Oferta nacional', 'Exportaciones', 'Brasil', 0],
+      ],
       options: [{ key: 'origin', label: 'Origen (si cargás Destino | valor)', placeholder: 'Gas exportado 2025' }, OPT_UNIT] },
     shaded_list: { label: 'Mapa esquemático por zona (lista sombreada)', group: 'Composición', kind: 'html',
       columns: 'Zona | valor', names: null,
@@ -282,8 +301,7 @@
     if (chartType === 'scatter') out = [...new Set(rows.map(r => r[0]).filter(Boolean))];
     else if (chartType === 'dumbbell') out = [names[0] || 'A', names[1] || 'B'];
     else if (chartType === 'treemap') out = rows.filter(r => num(r[1]) > 0).map(r => r[0]);
-    else if (chartType === 'sankey') out = [...new Set(rows.filter(r => (r.length >= 3 && r[2] !== '') ? num(r[2]) > 0 : num(r[1]) > 0)
-      .map(r => (r.length >= 3 && r[2] !== '') ? r[1] : r[0]).filter(Boolean))];
+    else if (chartType === 'sankey') out = sankeyTargets(sankeyFlows(rows, 'Origen'));
     else { const n = Math.max(1, parsed.series.length); out = []; for (let i = 0; i < n; i++) out.push(names[i] || ('Serie ' + (i + 1))); }
     if (!out.length) out = ['Serie 1'];
     return out.slice(0, MAX_COLORS);
@@ -513,44 +531,87 @@
       html += `<div data-si="${i}" title="${esc(d.name)}: ${fmt(d.v)} ${esc(unit)} (${pct.toFixed(1)}%)" style="flex:${pct} 1 ${pct}%; min-width:72px; min-height:64px; background:${P[i % P.length]}; color:#fff; display:flex; align-items:flex-end; padding:6px; font-size:10.5px; line-height:1.25;">${esc(d.name)}<br><b>${fmt(d.v)} ${esc(unit)}</b></div>`; });
     return htmlIn(c, html + '</div>');
   };
-  R.sankey = (c, def, P) => {
-    // Filas "Origen | Destino | valor", o "Destino | valor" con un origen
-    // único: el de la opción "origin", o el título del gráfico.
-    const single = def.options.origin || def.title || 'Origen';
-    const flows = def.rows.map(r => (r.length >= 3 && r[2] !== '' && num(r[2]) != null)
-      ? { s: r[0], t: r[1], v: num(r[2]) }
-      : { s: single, t: r[0], v: num(r[1]) }).filter(f => f.s && f.t && f.v > 0);
-    if (!flows.length) return htmlIn(c, '');
-    const unit = def.options.unit || '';
-    const label = n => `${n.name} — ${fmt(n.total)}${unit ? ' ' + unit : ''}`;
-    const srcs = [], tgts = [];
-    const node = (arr, name) => { let n = arr.find(x => x.name === name); if (!n) { n = { name, total: 0, off: 0 }; arr.push(n); } return n; };
-    flows.forEach(f => { node(srcs, f.s).total += f.v; node(tgts, f.t).total += f.v; });
-    const total = flows.reduce((s, f) => s + f.v, 0);
-    const W = widthOf(c), nMax = Math.max(srcs.length, tgts.length);
-    const gap = 12, padT = 16, padB = 12;
-    const H = Math.max(220, Math.min(460, 46 * nMax + 100));
-    const k = (H - padT - padB - gap * (nMax - 1)) / total;
-    // Ancho de las columnas de etiquetas según el texto más largo de cada lado.
-    const textW = s => Math.min(Math.round(s.length * 6.6) + 18, Math.floor(W * 0.36));
-    const labL = Math.max(90, ...srcs.map(n => textW(label(n)))), labR = Math.max(90, ...tgts.map(n => textW(label(n))));
-    const bw = 14, x0 = labL, x1 = W - labR;
-    let y = padT; srcs.forEach(n => { n.y = y; n.h = Math.max(n.total * k, 2); y += n.h + gap; });
-    y = padT; tgts.forEach(n => { n.y = y; n.h = Math.max(n.total * k, 2); y += n.h + gap; });
-    let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" font-family="Georgia,serif">`;
-    flows.forEach(f => {
-      const s = srcs.find(n => n.name === f.s), t = tgts.find(n => n.name === f.t);
-      const h = f.v * k, sy = s.y + s.off, ty = t.y + t.off; s.off += h; t.off += h;
-      const xa = x0 + bw, xb = x1, xm = (xa + xb) / 2;
-      svg += `<path d="M${xa},${sy} C${xm},${sy} ${xm},${ty} ${xb},${ty} L${xb},${ty + h} C${xm},${ty + h} ${xm},${sy + h} ${xa},${sy + h} Z" fill="${P[tgts.indexOf(t) % P.length]}" opacity="0.7" data-si="${tgts.indexOf(t)}"><title>${esc(f.s)} → ${esc(f.t)}: ${fmt(f.v)} ${esc(unit)}</title></path>`;
+  // Sankey de varios niveles. Cada fila de datos es un camino de nombres con
+  // el valor al final ("TGS | Oferta nacional | 74.1"; "Oferta nacional |
+  // Demanda interna | Usinas | 34.5"): el valor recorre todo el camino y los
+  // tramos repetidos se suman. Con un solo nombre ("Chile | 340.8") el
+  // origen es "single" (opción "origin" o título del gráfico). Devuelve los
+  // tramos {s, t, v} en orden de aparición.
+  window.sankeyFlows = function (rows, single) {
+    const links = [], byKey = new Map();
+    (rows || []).forEach(r => {
+      const cells = r.map(x => String(x == null ? '' : x).trim());
+      let last = cells.length - 1;
+      while (last >= 0 && cells[last] === '') last--;
+      if (last < 1) return;
+      const v = num(cells[last]);
+      if (!(v > 0)) return;
+      let path = cells.slice(0, last).filter(Boolean);
+      if (path.length === 1) path = [single || 'Origen', path[0]];
+      for (let i = 0; i + 1 < path.length; i++) {
+        if (path[i] === path[i + 1]) continue;
+        const k = path[i] + ' ' + path[i + 1];
+        if (!byKey.has(k)) { byKey.set(k, { s: path[i], t: path[i + 1], v: 0 }); links.push(byKey.get(k)); }
+        byKey.get(k).v += v;
+      }
     });
-    srcs.forEach(n => { svg += `<rect x="${x0}" y="${n.y}" width="${bw}" height="${n.h}" fill="#333"/><text x="${x0 - 8}" y="${n.y + n.h / 2 + 4}" text-anchor="end" font-size="11.5" fill="${INK}">${esc(label(n))}</text>`; });
-    let last = -Infinity;
-    tgts.forEach((n, i) => {   // etiquetas separadas al menos 15px para que no se pisen
-      const cy = Math.max(n.y + n.h / 2, last + 15); last = cy;
-      svg += `<rect x="${x1}" y="${n.y}" width="${bw}" height="${n.h}" fill="${P[i % P.length]}" data-si="${i}"/>`;
-      if (Math.abs(cy - (n.y + n.h / 2)) > 1) svg += `<line x1="${x1 + bw}" y1="${n.y + n.h / 2}" x2="${x1 + bw + 6}" y2="${cy}" stroke="#999" stroke-width="1"/>`;
-      svg += `<text x="${x1 + bw + 10}" y="${cy + 4}" font-size="11.5" fill="${INK}">${esc(label(n))}</text>`;
+    return links;
+  };
+  // Los colores del Sankey son uno por nodo destino, en orden de aparición
+  // (los nodos que solo son origen van en gris oscuro).
+  const sankeyTargets = links => [...new Set(links.map(l => l.t))];
+  R.sankey = (c, def, P) => {
+    const links = sankeyFlows(def.rows, def.options.origin || def.title || 'Origen');
+    if (!links.length) return htmlIn(c, '');
+    const unit = def.options.unit || '';
+    // Nodos en orden de aparición; nivel = camino más largo desde un origen.
+    const nodes = [], byName = new Map();
+    const node = name => { let n = byName.get(name); if (!n) { n = { name, in: 0, out: 0, depth: 0, inOff: 0, outOff: 0 }; byName.set(name, n); nodes.push(n); } return n; };
+    links.forEach(l => { node(l.s).out += l.v; node(l.t).in += l.v; });
+    for (let iter = 0; iter < nodes.length; iter++) {   // relajación acotada: un ciclo no cuelga
+      let changed = false;
+      links.forEach(l => { const s = byName.get(l.s), t = byName.get(l.t); if (t.depth < s.depth + 1 && s.depth + 1 < nodes.length) { t.depth = s.depth + 1; changed = true; } });
+      if (!changed) break;
+    }
+    const targets = sankeyTargets(links);
+    nodes.forEach(n => { n.total = Math.max(n.in, n.out); n.si = targets.indexOf(n.name); n.color = n.si >= 0 ? P[n.si % P.length] : '#333'; });
+    const maxDepth = Math.max(...nodes.map(n => n.depth));
+    const cols = []; for (let d = 0; d <= maxDepth; d++) cols.push(nodes.filter(n => n.depth === d));
+    const W = widthOf(c), gap = 10, padT = 16, padB = 12;
+    const maxN = Math.max(...cols.map(col => col.length));
+    const H = Math.max(220, Math.min(560, 32 * maxN + 90));
+    // Escala: la columna más cargada tiene que entrar en el alto.
+    const k = Math.min(...cols.map(col => (H - padT - padB - gap * (col.length - 1)) / (col.reduce((s, n) => s + n.total, 0) || 1)));
+    const label = n => `${n.name} — ${fmt(n.total)}${unit ? ' ' + unit : ''}`;
+    const textW = s => Math.min(Math.round(s.length * 6.6) + 18, Math.floor(W * 0.3));
+    const bw = 14;
+    const labL = Math.max(90, ...cols[0].map(n => textW(label(n)))), labR = Math.max(90, ...cols[maxDepth].map(n => textW(label(n))));
+    const x0 = labL, x1 = W - labR - bw;
+    cols.forEach((col, d) => {
+      let y = padT;
+      col.forEach(n => { n.x = maxDepth ? x0 + (x1 - x0) * d / maxDepth : x0; n.y = y; n.h = Math.max(n.total * k, 2); y += n.h + gap; });
+    });
+    let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" font-family="Georgia,serif">`;
+    // Cintas: salen por la derecha del origen y entran por la izquierda del destino, en orden.
+    links.forEach(l => {
+      const s = byName.get(l.s), t = byName.get(l.t);
+      const h = l.v * k, sy = s.y + s.outOff, ty = t.y + t.inOff; s.outOff += h; t.inOff += h;
+      const xa = s.x + bw, xb = t.x, xm = (xa + xb) / 2;
+      svg += `<path d="M${xa},${sy} C${xm},${sy} ${xm},${ty} ${xb},${ty} L${xb},${ty + h} C${xm},${ty + h} ${xm},${sy + h} ${xa},${sy + h} Z" fill="${t.color}" opacity="0.62" data-si="${t.si}"><title>${esc(l.s)} → ${esc(l.t)}: ${fmt(l.v)} ${esc(unit)}</title></path>`;
+    });
+    // Nodos y etiquetas: la primera columna a la izquierda; las demás a la
+    // derecha del nodo, con halo blanco para leerse sobre las cintas.
+    cols.forEach((col, d) => {
+      let last = -Infinity;
+      col.forEach(n => {
+        svg += `<rect x="${n.x}" y="${n.y}" width="${bw}" height="${n.h}" fill="${n.color}"${n.si >= 0 ? ` data-si="${n.si}"` : ''}><title>${esc(label(n))}</title></rect>`;
+        const cy = Math.max(n.y + n.h / 2, last + 15); last = cy;   // etiquetas separadas al menos 15px
+        if (d === 0) svg += `<text x="${n.x - 8}" y="${cy + 4}" text-anchor="end" font-size="11.5" fill="${INK}">${esc(label(n))}</text>`;
+        else {
+          if (d === maxDepth && Math.abs(cy - (n.y + n.h / 2)) > 1) svg += `<line x1="${n.x + bw}" y1="${n.y + n.h / 2}" x2="${n.x + bw + 6}" y2="${cy}" stroke="#999" stroke-width="1"/>`;
+          svg += `<text x="${n.x + bw + 8}" y="${cy + 4}" font-size="${d === maxDepth ? 11.5 : 10.5}" fill="${INK}" stroke="#fff" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${esc(label(n))}</text>`;
+        }
+      });
     });
     return htmlIn(c, svg + '</svg>');
   };

@@ -107,6 +107,16 @@ python test_app.py
      una **plantilla Excel** del tipo elegido, con las columnas que lleva
      y filas de ejemplo, para completarla y subirla. Al guardar, la tabla
      queda siempre en el formato con `|`.
+     El **Sankey** dibuja los niveles que hagan falta: cada fila es un
+     camino de nombres con el valor al final (`TGS | Oferta nacional |
+     74.1` es una entrada; `Oferta nacional | Demanda interna | Usinas |
+     34.5` una salida en dos pasos), y los tramos que se repiten se suman.
+     Su plantilla Excel es un balance en dos bloques, como los que arma el
+     Instituto: a la izquierda las entradas (Origen, Concepto, Valor: el
+     concepto entra al origen) y a la derecha las salidas (Origen del
+     Destino, Destino, Concepto, Valor). Al subirla, el editor la reconoce
+     por el encabezado y la convierte en caminos. Los colores son uno por
+     nodo de destino; los nodos que solo son origen van en gris oscuro.
      Los tipos son: barras agrupadas, barras horizontales, barras
      divergentes, mancuernas, dispersión, líneas, barras + línea (eje
      derecho), áreas apiladas, ranking en el tiempo (bump), mapa de calor,

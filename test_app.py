@@ -207,6 +207,11 @@ js = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "ch
 ok(all(g in js for g in ["group('Institucional'", "group('Vivos'", "group('Pastel'", "group('Tierra'", "group('Oscuros'", "group('Grises'"])
    and js.count("', '#") >= 60 and "window.chartColorSlots" in js and "onSeriesClick" in js and "data-si=" in js,
    "charts.js: paleta de 60+ colores en 6 grupos, colores por serie/bloque y clic sobre la serie (onSeriesClick, data-si)")
+ok("window.sankeyFlows" in js and "'Origen del Destino'" in js and "template: [" in js,
+   "charts.js: Sankey por caminos de varios niveles y plantilla Excel de balance en dos bloques")
+ok(pt("Oferta nacional | Demanda interna | Usinas | 34,5\nTGS | Oferta nacional | 74.1", "sankey")[2]
+   == [["Oferta nacional", "Demanda interna", "Usinas", "34.5"], ["TGS", "Oferta nacional", "74.1"]],
+   "sankey: filas de largo variable (caminos) con el valor al final")
 ok('<a href="https://indec.gob.ar/x?a=1&amp;b=2" target="_blank" rel="noopener">el informe</a>' in html
    and '<a href="http://www.enargas.gob.ar" target="_blank" rel="noopener">www.enargas.gob.ar</a>.' in html
    and 'href="javascript' not in html and '<a href=x>' not in html and "&lt;a href=x&gt;" in html,
