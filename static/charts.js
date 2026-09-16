@@ -577,39 +577,81 @@
     nodes.forEach(n => { n.total = Math.max(n.in, n.out); n.si = targets.indexOf(n.name); n.color = n.si >= 0 ? P[n.si % P.length] : '#333'; });
     const maxDepth = Math.max(...nodes.map(n => n.depth));
     const cols = []; for (let d = 0; d <= maxDepth; d++) cols.push(nodes.filter(n => n.depth === d));
-    const W = widthOf(c), gap = 10, padT = 16, padB = 12;
+    const W = widthOf(c), gap = 10, padT = 16, padB = 12, bw = 14;
     const maxN = Math.max(...cols.map(col => col.length));
     const H = Math.max(220, Math.min(560, 32 * maxN + 90));
-    // Escala: la columna más cargada tiene que entrar en el alto.
-    const k = Math.min(...cols.map(col => (H - padT - padB - gap * (col.length - 1)) / (col.reduce((s, n) => s + n.total, 0) || 1)));
-    const label = n => `${n.name} — ${fmt(n.total)}${unit ? ' ' + unit : ''}`;
-    const textW = s => Math.min(Math.round(s.length * 6.6) + 18, Math.floor(W * 0.3));
-    const bw = 14;
-    const labL = Math.max(90, ...cols[0].map(n => textW(label(n)))), labR = Math.max(90, ...cols[maxDepth].map(n => textW(label(n))));
-    const x0 = labL, x1 = W - labR - bw;
-    cols.forEach((col, d) => {
-      let y = padT;
-      col.forEach(n => { n.x = maxDepth ? x0 + (x1 - x0) * d / maxDepth : x0; n.y = y; n.h = Math.max(n.total * k, 2); y += n.h + gap; });
-    });
+    const valueTxt = n => `${fmt(n.total)}${unit ? ' ' + unit : ''}`;
+    const label = n => `${n.name} — ${valueTxt(n)}`;
+    const textW = (s, fs) => Math.round(s.length * (fs || 11.5) * 0.56) + 6;
+    // Rótulos: primera columna a la izquierda y última a la derecha, en
+    // negro sobre el margen blanco. Las columnas del medio son bloques
+    // anchos con el nombre y el valor adentro, en blanco; si el rótulo no
+    // entra en el bloque, va afuera (debajo del nodo) en negro.
+    // Rótulos laterales: con unidad si entran en el margen (30 % del ancho);
+    // si no, sin unidad; si no, solo el nombre (el valor queda en el tooltip).
+    const cap = Math.floor(W * 0.3);
+    const noUnit = n => `${n.name} — ${fmt(n.total)}`;
+    const sideStyle = col => { const widest = f => Math.max(...col.map(n => textW(f(n)) + 12)); return widest(label) <= cap ? label : (widest(noUnit) <= cap ? noUnit : (n => n.name)); };
+    const labelL = sideStyle(cols[0]), labelR = sideStyle(cols[maxDepth]);
+    const labL = Math.max(90, Math.min(cap, Math.max(...cols[0].map(n => textW(labelL(n)) + 12))));
+    const labR = Math.max(90, Math.min(cap, Math.max(...cols[maxDepth].map(n => textW(labelR(n)) + 12))));
+    const firstX = labL, lastX = W - labR - bw, nMid = Math.max(0, maxDepth - 1);
+    let nw = 0;   // ancho de los nodos intermedios: el rótulo más largo, sin comerse las cintas
+    if (nMid) {
+      const mids = cols.slice(1, maxDepth).flat();
+      nw = Math.min(170, Math.max(60, ...mids.map(n => Math.max(textW(n.name), textW(valueTxt(n))) + 16)));
+      nw = Math.max(24, Math.min(nw, (lastX - firstX - bw - 60 * maxDepth) / nMid));
+    }
+    const gapX = maxDepth ? (lastX - firstX - bw - nw * nMid) / maxDepth : 0;
+    const colX = d => d === 0 ? firstX : (d === maxDepth ? lastX : firstX + bw + gapX * d + nw * (d - 1));
+    const isMid = n => n.depth > 0 && n.depth < maxDepth;
+    const fitsTwo = n => isMid(n) && n.h >= 30 && nw >= Math.max(textW(n.name), textW(valueTxt(n))) + 8;
+    const fitsOne = n => isMid(n) && n.h >= 16 && nw >= textW(label(n), 10.5) + 8;
+    // Rótulo debajo del nodo: se acorta para no pisar el de la columna vecina.
+    const belowTxt = n => { const pitch = gapX + nw - 6; return textW(label(n), 10.5) <= pitch ? label(n) : (textW(noUnit(n), 10.5) <= pitch ? noUnit(n) : n.name); };
+    // Escala: la columna más cargada tiene que entrar en el alto. Los nodos
+    // cuyo rótulo va debajo reservan 16 px más; como eso cambia las alturas,
+    // se itera hasta que la decisión no cambie.
+    let k;
+    for (let pass = 0; pass < 4; pass++) {
+      k = Math.min(...cols.map(col => (H - padT - padB - col.reduce((s, n) => s + gap + (n.below ? 16 : 0), -gap)) / (col.reduce((s, n) => s + n.total, 0) || 1)));
+      cols.forEach((col, d) => {
+        let y = padT;
+        col.forEach(n => { n.x = colX(d); n.w = isMid(n) ? nw : bw; n.y = y; n.h = Math.max(n.total * k, 2); y += n.h + gap + (n.below ? 16 : 0); });
+      });
+      let changed = false;
+      nodes.forEach(n => { const below = isMid(n) && !fitsTwo(n) && !fitsOne(n); if (below !== !!n.below) { n.below = below; changed = true; } });
+      if (!changed) break;
+    }
+    // Texto adentro: blanco, salvo sobre colores muy claros.
+    const inkOn = hex => { const [r, g, b] = hexRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.72 ? INK : '#fff'; };
     let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" font-family="Georgia,serif">`;
     // Cintas: salen por la derecha del origen y entran por la izquierda del destino, en orden.
     links.forEach(l => {
       const s = byName.get(l.s), t = byName.get(l.t);
       const h = l.v * k, sy = s.y + s.outOff, ty = t.y + t.inOff; s.outOff += h; t.inOff += h;
-      const xa = s.x + bw, xb = t.x, xm = (xa + xb) / 2;
+      const xa = s.x + s.w, xb = t.x, xm = (xa + xb) / 2;
       svg += `<path d="M${xa},${sy} C${xm},${sy} ${xm},${ty} ${xb},${ty} L${xb},${ty + h} C${xm},${ty + h} ${xm},${sy + h} ${xa},${sy + h} Z" fill="${t.color}" opacity="0.62" data-si="${t.si}"><title>${esc(l.s)} → ${esc(l.t)}: ${fmt(l.v)} ${esc(unit)}</title></path>`;
     });
-    // Nodos y etiquetas: la primera columna a la izquierda; las demás a la
-    // derecha del nodo, con halo blanco para leerse sobre las cintas.
     cols.forEach((col, d) => {
       let last = -Infinity;
       col.forEach(n => {
-        svg += `<rect x="${n.x}" y="${n.y}" width="${bw}" height="${n.h}" fill="${n.color}"${n.si >= 0 ? ` data-si="${n.si}"` : ''}><title>${esc(label(n))}</title></rect>`;
-        const cy = Math.max(n.y + n.h / 2, last + 15); last = cy;   // etiquetas separadas al menos 15px
-        if (d === 0) svg += `<text x="${n.x - 8}" y="${cy + 4}" text-anchor="end" font-size="11.5" fill="${INK}">${esc(label(n))}</text>`;
-        else {
-          if (d === maxDepth && Math.abs(cy - (n.y + n.h / 2)) > 1) svg += `<line x1="${n.x + bw}" y1="${n.y + n.h / 2}" x2="${n.x + bw + 6}" y2="${cy}" stroke="#999" stroke-width="1"/>`;
-          svg += `<text x="${n.x + bw + 8}" y="${cy + 4}" font-size="${d === maxDepth ? 11.5 : 10.5}" fill="${INK}" stroke="#fff" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${esc(label(n))}</text>`;
+        svg += `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" fill="${n.color}"${n.si >= 0 ? ` data-si="${n.si}"` : ''}><title>${esc(label(n))}</title></rect>`;
+        const cx = n.x + n.w / 2, cy0 = n.y + n.h / 2;
+        if (d === 0) {
+          svg += `<text x="${n.x - 8}" y="${cy0 + 4}" text-anchor="end" font-size="11.5" fill="${INK}">${esc(labelL(n))}</text>`;
+        } else if (d === maxDepth) {
+          const cy = Math.max(cy0, last + 15); last = cy;   // etiquetas separadas al menos 15px
+          if (Math.abs(cy - cy0) > 1) svg += `<line x1="${n.x + bw}" y1="${cy0}" x2="${n.x + bw + 6}" y2="${cy}" stroke="#999" stroke-width="1"/>`;
+          svg += `<text x="${n.x + bw + 8}" y="${cy + 4}" font-size="11.5" fill="${INK}">${esc(labelR(n))}</text>`;
+        } else if (fitsTwo(n)) {
+          const ink = inkOn(n.color);
+          svg += `<text x="${cx}" y="${cy0 - 3}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${ink}">${esc(n.name)}</text>` +
+            `<text x="${cx}" y="${cy0 + 11}" text-anchor="middle" font-size="11" fill="${ink}">${esc(valueTxt(n))}</text>`;
+        } else if (fitsOne(n)) {
+          svg += `<text x="${cx}" y="${cy0 + 4}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${inkOn(n.color)}">${esc(label(n))}</text>`;
+        } else {
+          svg += `<text x="${cx}" y="${n.y + n.h + 12}" text-anchor="middle" font-size="10.5" fill="${INK}" stroke="#fff" stroke-width="2.5" paint-order="stroke" stroke-linejoin="round">${esc(belowTxt(n))}</text>`;
         }
       });
     });

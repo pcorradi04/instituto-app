@@ -540,6 +540,16 @@ entre turnos. Estado al cierre de esa ronda:
   editor reconoce el encabezado "Origen del Destino" al importar y convierte
   a caminos (bloque 1 invertido: concepto → origen; "-" o 0 se omiten).
   Placeholder / "Cargar ejemplo" del Sankey = el mismo balance en caminos.
+  (4) Rótulos del Sankey, a pedido de Pedro ("si están adentro que estén
+  en blanco, si no que estén afuera en negro"): los nodos intermedios son
+  bloques anchos (`nw`, hasta 170 px, sin comerse las cintas) con nombre en
+  negrita y valor adentro en blanco (`inkOn`: tinta oscura sobre colores
+  muy claros); si no entra en dos líneas ni en una, el rótulo va debajo del
+  nodo en negro y se reserva 16 px (iteración `pass` porque cambia la
+  escala). Laterales: con unidad si entran en el 30 % del ancho, si no sin
+  unidad, si no solo el nombre; debajo: idem según el paso entre columnas
+  (`belowTxt`). Verificado rasterizando el SVG (canvas → PNG subido por
+  `/admin/upload` con la sesión de localhost, leído con Read y borrado).
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.
