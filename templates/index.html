@@ -8,29 +8,36 @@
   <p class="lede">Desde el Instituto de Energía de la Universidad Austral proponemos un seguimiento cercano y permanente de las transformaciones que atraviesan al sector energético. Este espacio reúne miradas, lecturas, análisis y debate, apoyados en datos y en una observación sistemática de una realidad particularmente dinámica. El propósito es interpretar los cambios mientras ocurren, identificar tendencias, contrastar perspectivas y explorar sus posibles implicancias. Los datos constituyen el punto de partida; el análisis y la discusión permiten dotarlos de contexto y sentido. A partir de allí, las proyecciones buscan ampliar la mirada hacia los escenarios que comienzan a configurarse. Un espacio abierto para pensar la energía desde distintas perspectivas, combinando evidencia, reflexión académica y diálogo con los protagonistas del sector.</p>
 </div>
 
+{# Portada tipo blog: una tarjeta por post con categoría, número, título,
+   autor, fecha, comentarios, resumen (copete o primer párrafo) y botón. #}
+<div class="home-band">
 <main>
-<section style="border-bottom:none;">
   {% if q %}
-    <p class="section-intro">Resultados para “{{ q }}” ({{ posts|length }})</p>
+    <p class="section-intro">Resultados para “{{ q }}” ({{ posts|length }}) · <a href="{{ url_for('index') }}">ver todos</a></p>
   {% endif %}
 
   {% if posts %}
   <div class="post-list">
     {% for post in posts %}
-    <a class="post-card" href="{{ url_for('show_post', slug=post['slug']) }}" style="--accent:{{ accents_hex.get(post['accent'], '#0000CC') }}">
-      {% if post['post_number'] or post['eyebrow'] %}
-      <div class="section-marker card-marker">{% if post['post_number'] %}<span class="num">{{ post['post_number'] }}</span>{% endif %}{% if post['eyebrow'] %}<span class="tag">{{ post['eyebrow'] }}</span>{% endif %}</div>
-      {% endif %}
-      <h2>{{ post['title'] }}</h2>
-      {% if post['dek'] %}<p class="dek">{{ post['dek'] }}</p>{% endif %}
-      <div class="meta">{{ post['published_at'] | fecha_es }}{% set n = comment_counts.get(post['id'], 0) %}{% if n %} · {{ n }} comentario{{ 's' if n != 1 }}{% endif %}</div>
-    </a>
+    <article class="post-card" style="--accent:{{ accents_hex.get(post['accent'], '#0000CC') }}">
+      {% if post['eyebrow'] %}<div class="card-cat">Publicado en <a href="{{ url_for('index', q=post['eyebrow']) }}">{{ post['eyebrow'] }}</a></div>{% endif %}
+      <h2>{% if post['post_number'] %}<span class="post-num">{{ post['post_number'] }}</span>{% endif %}<a href="{{ url_for('show_post', slug=post['slug']) }}">{{ post['title'] }}</a></h2>
+      <div class="card-meta">
+        <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ post['author'] or 'Instituto de Energía' }}</span>
+        <span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>{{ post['published_at'] | fecha_es }}</span>
+        {% set n = comment_counts.get(post['id'], 0) %}
+        {% if n %}<span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>{{ n }} comentario{{ 's' if n != 1 }}</span>{% endif %}
+      </div>
+      {% set ex = excerpts.get(post['id'], '') %}
+      {% if ex %}<p class="card-excerpt">{{ ex }}</p>{% endif %}
+      <a class="btn-read" href="{{ url_for('show_post', slug=post['slug']) }}">Seguir leyendo…</a>
+    </article>
     {% endfor %}
   </div>
   {% else %}
     <p class="section-intro">{% if q %}No encontramos posts que coincidan.{% else %}Todavía no hay posts publicados.{% endif %}</p>
   {% endif %}
-</section>
 </main>
+</div>
 
 {% endblock %}

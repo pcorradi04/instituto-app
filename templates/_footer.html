@@ -1,0 +1,11 @@
+{# Pie del sitio: banda gris con el logo blanco y el texto legal del
+   Instituto (para cambiar el texto, editar acá). Lo usan base.html y el editor. #}
+<footer class="site-foot">
+  <div class="foot-inner">
+    <img class="foot-logo" src="{{ url_for('static', filename='img/logo-footer-white.png') }}" alt="Instituto de Energía — Universidad Austral">
+    <p class="foot-legal">Estos materiales, incluidas todas sus actualizaciones, ampliaciones y versiones posteriores, son publicados por el Instituto de Energía de la Universidad Austral y se encuentran protegidos por los derechos de autor y demás derechos de propiedad intelectual que correspondan al Instituto de Energía y/o a la Universidad Austral. Su acceso y utilización se encuentran limitados a los destinatarios autorizados y sujetos a los términos y condiciones acordados entre el Instituto de Energía de la Universidad Austral y dichos destinatarios. Queda prohibida su reproducción, distribución, publicación, modificación, cesión o utilización, total o parcial, por cualquier medio, sin autorización previa y expresa del Instituto de Energía de la Universidad Austral.</p>
+  </div>
+  {% if session.get('is_admin') %}
+  <div class="foot-admin"><a href="{{ url_for('admin_dashboard') }}">Panel de administración</a> · <a href="{{ url_for('admin_logout') }}">Cerrar sesión</a></div>
+  {% endif %}
+</footer>

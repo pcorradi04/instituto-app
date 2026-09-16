@@ -28,13 +28,8 @@
 
 <div class="page" id="page" style="--accent:{{ accent_hex }}">
 
-<div class="brand-bar">
-  <div class="blogtag">Blog del <b>Instituto de Energía</b></div>
-  <div class="search-wrap"><span class="icon"></span><input type="text" placeholder="Buscar post..." disabled></div>
-  <div class="logos">
-    <img class="inst-logo" src="{{ url_for('static', filename='img/logo-header.png') }}" alt="Universidad Austral — Instituto de Energía">
-  </div>
-</div>
+{% set brand_editor = True %}{# el buscador del banner va apagado en el editor #}
+{% include "_brand.html" %}
 
 <div class="editor-guide" id="guide">
   <div class="guide-top">
@@ -58,10 +53,15 @@
 
 <main>
 <header class="post-head">
-  <div class="section-marker post-marker">{% if post['post_number'] %}<span class="num">{{ post['post_number'] }}</span>{% else %}<span class="num num-draft" title="El número se asigna al publicar">–</span>{% endif %}<span class="tag" style="flex:1"><input class="ed" id="fEyebrow" maxlength="80" placeholder="Etiqueta / categoría (ej: Comercio Exterior)"></span></div>
-  <h1><textarea class="ed" id="fTitle" rows="1" placeholder="Título del post"></textarea></h1>
-  <div class="byline">Por <input class="ed inline" id="fAuthor" maxlength="120" placeholder="Instituto de Energía (o el nombre de quien firma)"></div>
-  <p class="lede"><textarea class="ed" id="fDek" rows="1" placeholder="Copete / resumen: dos o tres líneas que cuenten de qué va el post (opcional)."></textarea></p>
+  <div class="post-head-row">
+    {% if post['post_number'] %}<span class="post-num">{{ post['post_number'] }}</span>{% else %}<span class="post-num num-draft" title="El número se asigna al publicar">–</span>{% endif %}
+    <div class="post-head-main">
+      <div class="eyebrow"><input class="ed" id="fEyebrow" maxlength="80" placeholder="Etiqueta / categoría (ej: Comercio Exterior), opcional"></div>
+      <h1><textarea class="ed" id="fTitle" rows="1" placeholder="Título del post"></textarea></h1>
+      <div class="byline">Por <input class="ed inline" id="fAuthor" maxlength="120" placeholder="Instituto de Energía (o el nombre de quien firma)"></div>
+    </div>
+  </div>
+  <p class="lede"><textarea class="ed" id="fDek" rows="1" placeholder="Copete / resumen: dos o tres líneas que cuenten de qué va el post (opcional; en la portada se usa como resumen)."></textarea></p>
 </header>
 
 <section style="border-bottom:none;">
@@ -78,10 +78,7 @@
 </section>
 </main>
 
-<footer>
-  <img class="footer-logo" src="{{ url_for('static', filename='img/logo-footer.png') }}" alt="Instituto de Energía — Universidad Austral">
-  Instituto de Energía — Universidad Austral.
-</footer>
+{% include "_footer.html" %}
 
 </div>
 

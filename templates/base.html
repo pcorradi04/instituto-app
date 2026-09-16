@@ -11,16 +11,7 @@
 <body>
 <div class="page"{% if accent_hex %} style="--accent:{{ accent_hex }}"{% endif %}>
 
-<div class="brand-bar">
-  <div class="blogtag">Blog del <b><a href="{{ url_for('index') }}">Instituto de Energía</a></b></div>
-  <form class="search-wrap" action="{{ url_for('index') }}" method="get">
-    <span class="icon"></span>
-    <input type="text" name="q" placeholder="Buscar post..." value="{{ request.args.get('q','') }}" autocomplete="off">
-  </form>
-  <div class="logos">
-    <img class="inst-logo" src="{{ url_for('static', filename='img/logo-header.png') }}" alt="Universidad Austral — Instituto de Energía">
-  </div>
-</div>
+{% include "_brand.html" %}
 
 {% with messages = get_flashed_messages(with_categories=true, category_filter=['ok', 'error']) %}
   {% if messages %}
@@ -34,11 +25,7 @@
 
 {% block content %}{% endblock %}
 
-<footer>
-  <img class="footer-logo" src="{{ url_for('static', filename='img/logo-footer.png') }}" alt="Instituto de Energía — Universidad Austral">
-  Instituto de Energía — Universidad Austral.
-  {% if session.get('is_admin') %} · <a href="{{ url_for('admin_dashboard') }}">Panel de administración</a> · <a href="{{ url_for('admin_logout') }}">Cerrar sesión</a>{% endif %}
-</footer>
+{% include "_footer.html" %}
 
 </div>
 {% block scripts %}{% endblock %}

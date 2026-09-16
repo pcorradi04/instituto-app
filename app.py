@@ -135,6 +135,22 @@ NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "") or SMTP_USER
 # Dirección pública del sitio, para armar los links de los mails
 # (ej. https://institutoenergia.pythonanywhere.com). Si falta, se deduce.
 SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
+# Redes sociales del banner: se muestra el ícono de cada red que tenga su
+# dirección en el .env (SOCIAL_X=https://x.com/..., etc.).
+SOCIAL_NETWORKS = [
+    ("facebook", "Facebook", "SOCIAL_FACEBOOK"), ("x", "X", "SOCIAL_X"),
+    ("instagram", "Instagram", "SOCIAL_INSTAGRAM"), ("linkedin", "LinkedIn", "SOCIAL_LINKEDIN"),
+    ("youtube", "YouTube", "SOCIAL_YOUTUBE"), ("pinterest", "Pinterest", "SOCIAL_PINTEREST"),
+]
+
+
+def social_links():
+    out = []
+    for key, label, env in SOCIAL_NETWORKS:
+        url = os.environ.get(env, "").strip()
+        if url.startswith("http://") or url.startswith("https://"):
+            out.append({"key": key, "label": label, "url": url})
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +392,34 @@ def get_comments(db, post_id, include_pending=False):
         else:
             roots.append(c)
     return roots
+
+
+@app.context_processor
+def inject_social():
+    return {"social": social_links()}
+
+
+def plain_text(text):
+    """Texto de un párrafo sin marcas: [texto](url) -> texto, sin ** ni *."""
+    text = MD_LINK_RE.sub(lambda m: m.group(1), text or "")
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"\*(.+?)\*", r"\1", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def excerpt_for(db, post, limit=230):
+    """Resumen para la tarjeta de la portada: el copete o, si no hay, el
+    primer párrafo del post recortado en una palabra entera."""
+    if post["dek"]:
+        return post["dek"]
+    row = db.execute("SELECT data FROM blocks WHERE post_id = ? AND type = 'paragraph' ORDER BY position LIMIT 1",
+                     (post["id"],)).fetchone()
+    if not row:
+        return ""
+    text = plain_text(json.loads(row["data"]).get("text", ""))
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:.") + "…"
 
 
 def comment_counts(db):
@@ -657,6 +701,7 @@ def index():
             "SELECT * FROM posts WHERE status = 'published' ORDER BY published_at DESC"
         ).fetchall()
     return render_template("index.html", posts=posts, q=q, comment_counts=comment_counts(db),
+                           excerpts={p["id"]: excerpt_for(db, p) for p in posts},
                            accents_hex={k: v["hex"] for k, v in ACCENTS.items()})
 
 

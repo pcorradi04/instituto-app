@@ -25,17 +25,24 @@ a{color:var(--blue);}
 .mono{font-family:'Courier New',monospace;}
 
 /* ---------- brand bar ---------- */
-.brand-bar{display:flex; align-items:center; justify-content:space-between; gap:24px; padding:0 0 0 4vw; border-bottom:3px solid var(--blue); min-height:64px;}
-.brand-bar .blogtag{font-size:12.5px; color:var(--ink-soft);}
-.brand-bar .blogtag a{color:var(--ink-soft); text-decoration:none;}
-.brand-bar .blogtag b{color:var(--ink);}
-.search-wrap{position:relative; flex:0 1 280px;}
-.search-wrap input{width:100%; padding:9px 14px 9px 34px; border:1px solid var(--line); border-radius:2px; font-family:Georgia,serif; font-size:13.5px; background:var(--paper-2); color:var(--ink);}
-.search-wrap input:focus{outline:2px solid var(--blue); outline-offset:1px; background:#fff;}
-.search-wrap .icon{position:absolute; left:11px; top:50%; transform:translateY(-50%); width:13px; height:13px; border:1.6px solid var(--ink-soft); border-radius:50%; pointer-events:none;}
-.search-wrap .icon::after{content:''; position:absolute; width:6px; height:1.6px; background:var(--ink-soft); transform:rotate(45deg); left:11px; top:9px;}
-.brand-bar .logos{display:flex; align-items:center; align-self:stretch; margin-left:auto;}
-.brand-bar .inst-logo{height:66px; display:block; filter:drop-shadow(0 4px 10px rgba(0,0,0,0.28)); position:relative; top:-6px;}
+/* Fondo blanco y tonos grises: logo gris, "Blog", buscador limpio y redes. */
+.brand-bar{display:flex; align-items:center; gap:18px; padding:12px 4vw; background:#fff; border-bottom:1px solid #E4E2DD; min-height:66px;}
+.brand-logo{display:block; flex-shrink:0;}
+.brand-logo img{height:42px; width:auto; display:block;}
+.brand-sep{width:1px; height:34px; background:#D9D6CF; flex-shrink:0;}
+.brand-blog{font-size:21px; color:#9C9891; text-decoration:none; letter-spacing:.01em; white-space:nowrap;}
+.brand-blog:hover{color:var(--ink-soft);}
+.brand-spacer{flex:1;}
+.search-wrap{position:relative; flex:0 1 250px; display:flex; align-items:center; border:1px solid #D9D6CF; border-radius:3px; background:#fff; padding:0 6px 0 0;}
+.search-wrap input{flex:1; min-width:0; padding:7px 8px 7px 12px; border:0; font-family:Georgia,serif; font-size:13px; background:transparent; color:var(--ink); outline:0;}
+.search-wrap input::placeholder{color:#A19D95;}
+.search-wrap:focus-within{border-color:var(--ink-soft);}
+.search-btn{display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border:0; background:none; padding:0; color:#6B675F; cursor:pointer;}
+.search-btn svg{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.social{display:flex; align-items:center; gap:14px;}
+.social a{display:block; color:#4A4740; line-height:0;}
+.social a:hover{color:var(--blue);}
+.social svg{width:18px; height:18px; fill:currentColor;}
 
 /* ---------- hero ---------- */
 /* --accent lo define cada post (su "color de acento"); si no está, azul institucional. */
@@ -46,27 +53,27 @@ a{color:var(--blue);}
 
 /* ---------- layout ---------- */
 main{max-width:1240px; margin:0 auto; padding:0 4vw;}
-section{padding:58px 0; border-bottom:1px solid var(--line);}
+section{padding:26px 0 58px; border-bottom:1px solid var(--line);}   /* poco aire arriba: el encabezado del post ya separa */
 section:last-of-type{border-bottom:none;}
 .section-marker{display:flex; align-items:center; gap:16px; margin-bottom:16px;}
 .section-marker .num{background:var(--accent, var(--blue)); color:#fff; font-size:20px; font-weight:700; padding:7px 15px; line-height:1; flex-shrink:0;}
 .section-marker .tag{font-variant:small-caps; letter-spacing:0.05em; font-size:15px; color:var(--ink-soft); text-transform:uppercase; font-weight:700;}
 h2{font-size:clamp(22px,2.4vw,29px); margin:0 0 14px; font-weight:700;}
-.section-intro, .block-p{max-width:80ch; color:var(--ink); font-size:16px; margin-bottom:22px;}
+.section-intro, .block-p{color:var(--ink); font-size:16px; margin-bottom:22px;}   /* a todo el ancho, como las tarjetas de gráficos */
 
 /* ---------- encabezado del post (dentro del cuerpo; la banda beige es solo de la portada) ---------- */
-.post-head{padding:44px 0 26px; margin-bottom:6px; border-bottom:1px solid var(--line);}
-.post-head .eyebrow{text-transform:uppercase; letter-spacing:0.14em; font-size:12px; color:var(--accent, var(--blue)); font-weight:700; margin-bottom:14px;}
+/* Encabezado del post: número en caja a la izquierda del título; etiqueta,
+   título y firma a su derecha; el copete debajo, a todo el ancho. */
+.post-head{padding:34px 0 18px; margin-bottom:0; border-bottom:1px solid var(--line);}
+.post-head-row{display:flex; align-items:flex-start; gap:20px;}
+.post-num{background:var(--accent, var(--blue)); color:#fff; font-size:24px; font-weight:700; padding:8px 16px; line-height:1; flex-shrink:0; margin-top:8px;}
+.post-num.num-draft{background:var(--line); color:var(--ink-soft);}
+.post-head-main{flex:1; min-width:0;}
+.post-head .eyebrow{font-variant:small-caps; text-transform:uppercase; letter-spacing:0.05em; font-size:14px; color:var(--ink-soft); font-weight:700; margin-bottom:2px;}
 /* Número del post en caja, como los numerales de sección (más grande). */
-.post-marker{margin-bottom:18px;}
-.post-marker .num{font-size:24px; padding:8px 16px;}
-.post-marker .num.num-draft{background:var(--line); color:var(--ink-soft);}
-.card-marker{margin-bottom:8px; gap:10px;}
-.card-marker .num{font-size:13px; padding:4px 9px;}
-.card-marker .tag{font-size:12.5px;}
-.post-head h1{font-size:clamp(28px,3.6vw,44px); line-height:1.16; margin:0 0 12px; max-width:42ch;}
-.post-head .byline{font-size:13px; color:var(--ink-soft); margin:0 0 16px;}
-.post-head .lede{max-width:80ch; color:var(--ink-soft); font-size:17px; line-height:1.55; margin:0;}
+.post-head h1{font-size:clamp(28px,3.6vw,44px); line-height:1.16; margin:0 0 8px; max-width:42ch;}
+.post-head .byline{font-size:13px; color:var(--ink-soft); margin:0;}
+.post-head .lede{color:var(--ink-soft); font-size:17px; line-height:1.55; margin:16px 0 0;}
 
 /* ---------- chart card ---------- */
 .chart-card{position:relative; background:#fff; border:1px solid var(--line); padding:18px 22px 10px; margin-bottom:28px;}
@@ -104,18 +111,31 @@ h2{font-size:clamp(22px,2.4vw,29px); margin:0 0 14px; font-weight:700;}
 .callout.navy{border-left-color:var(--navy);}
 .callout.maroon{border-left-color:var(--rust); background:var(--maroon-soft);}
 
-/* ---------- post index cards ---------- */
-.post-list{display:grid; grid-template-columns:1fr; gap:0;}
-.post-card{display:block; padding:26px 0; border-bottom:1px solid var(--line); text-decoration:none; color:inherit;}
-.post-card:first-child{padding-top:0;}
-.post-card .eyebrow{text-transform:uppercase; letter-spacing:0.1em; font-size:11.5px; color:var(--accent, var(--blue)); font-weight:700; margin-bottom:6px;}
-.post-card h2{font-size:22px; margin:0 0 8px;}
-.post-card .dek{color:var(--ink-soft); font-size:15px; margin:0 0 8px; max-width:80ch;}
-.post-card .meta{font-size:12px; color:var(--ink-soft);}
+/* ---------- portada: tarjetas resumen de cada post ---------- */
+.home-band{background:var(--page-bg); padding:30px 0 52px; border-top:1px solid var(--line);}
+.post-list{display:grid; grid-template-columns:1fr; gap:18px;}
+.post-card{background:#fff; border:1px solid var(--line); border-radius:6px; box-shadow:0 2px 12px rgba(0,0,0,.05); padding:22px 26px 24px;}
+.post-card .card-cat{font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;}
+.post-card .card-cat a{color:var(--accent, var(--blue)); text-decoration:none;}
+.post-card .card-cat a:hover{text-decoration:underline;}
+.post-card h2{display:flex; align-items:flex-start; gap:12px; font-size:23px; line-height:1.25; margin:0 0 8px;}
+.post-card h2 a{color:var(--ink); text-decoration:none;}
+.post-card h2 a:hover{color:var(--accent, var(--blue));}
+.post-card .post-num{font-size:15px; padding:5px 10px; margin-top:3px;}
+.post-card .card-meta{display:flex; flex-wrap:wrap; gap:16px; font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;}
+.post-card .card-meta span{display:inline-flex; align-items:center; gap:5px;}
+.post-card .card-meta svg{width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.post-card .card-excerpt{color:var(--ink); font-size:15px; margin:0 0 16px;}
+.btn-read{display:inline-block; background:var(--accent, var(--blue)); color:#fff; text-decoration:none; font-size:13.5px; padding:8px 16px; border-radius:4px;}
+.btn-read:hover{filter:brightness(1.15);}
 
-/* ---------- footer ---------- */
-footer{padding:30px 4vw 44px; color:var(--ink-soft); font-size:11.5px;}
-.footer-logo{height:56px; margin-bottom:12px; display:block;}
+/* ---------- pie: banda gris con el logo blanco y el texto legal ---------- */
+footer.site-foot{background:#595959; color:#fff; padding:28px 4vw 24px; margin-top:44px;}
+.foot-inner{display:flex; align-items:center; gap:32px; max-width:1240px; margin:0 auto;}
+.foot-logo{height:104px; width:auto; flex:0 0 auto; display:block;}
+.foot-legal{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; line-height:1.5; margin:0; color:#fff;}
+.foot-admin{max-width:1240px; margin:14px auto 0; font-size:12px; color:#D5D5D5; font-family:'Helvetica Neue',Arial,sans-serif;}
+.foot-admin a{color:#fff;}
 
 mark.search-hit{background:var(--orange-soft); color:var(--ink); border-radius:1px;}
 mark.search-hit.current{background:var(--orange);}
@@ -163,8 +183,15 @@ form.inline{display:inline;}
 .flash.error{background:#F3E7E4; color:#A63D2F;}
 
 @media (max-width:860px){
-  .brand-bar{flex-direction:column; padding:14px 4vw; gap:10px;}
+  .brand-bar{flex-wrap:wrap; padding:10px 4vw; gap:12px;}
+  .brand-logo img{height:34px;}
+  .search-wrap{flex:1 1 100%; order:9;}
   .hero{padding-left:6vw; border-left-width:14px;}
+  .post-head-row{gap:12px;}
+  .post-num{font-size:18px; padding:6px 11px; margin-top:4px;}
+  .post-card{padding:18px 16px 20px;}
+  .foot-inner{flex-direction:column; align-items:flex-start; gap:18px;}
+  .foot-logo{height:80px;}
   .chart-logo{width:90px;}
   .figure-grid.cols-2, .figure-grid.cols-3{grid-template-columns:1fr;}
   .figure-panel + .figure-panel{border-left:0; padding-left:0; border-top:1px solid var(--line); padding-top:16px;}

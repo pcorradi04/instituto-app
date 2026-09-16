@@ -193,9 +193,22 @@ primera vez que se publica; no cambia aunque se despublique y se vuelva a
 publicar. Se ve en la portada y arriba del título.
 
 La banda beige con el título grande es solo de la portada; en cada post el
-encabezado (número, etiqueta, título, firma, copete) va dentro del cuerpo.
-Cada gráfico lleva el logo gris del Instituto arriba a la derecha, que
-también sale en el PNG.
+encabezado va dentro del cuerpo: el número del post en una caja azul a la
+izquierda del título, la etiqueta arriba y la firma abajo, y el copete
+debajo a todo el ancho (los párrafos también usan todo el ancho, igual que
+las tarjetas de gráficos). Cada gráfico lleva el logo gris del Instituto
+arriba a la derecha, que también sale en el PNG.
+
+**Banner, portada y pie.** El banner es blanco con el logo gris del
+Instituto, la palabra "Blog", un buscador y los íconos de las redes
+sociales: aparecen solo las que tengan su dirección en el `.env`
+(`SOCIAL_X`, `SOCIAL_INSTAGRAM`, `SOCIAL_FACEBOOK`, `SOCIAL_LINKEDIN`,
+`SOCIAL_YOUTUBE`, `SOCIAL_PINTEREST`; ver `.env.example`). La portada
+muestra una tarjeta por post: categoría, número, título, autor, fecha,
+cantidad de comentarios, un resumen (el copete o, si no hay, el primer
+párrafo recortado) y el botón "Seguir leyendo". El pie es una banda gris
+con el logo blanco del Instituto y el texto legal; ese texto se edita en
+`templates/_footer.html`.
 
 Además, cada post muestra autor y fecha debajo del título (el autor se
 carga en el editor, en la línea "Por ...") y, al final del texto, los logos

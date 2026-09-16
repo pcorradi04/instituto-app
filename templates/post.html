@@ -8,11 +8,14 @@
 
 <main>
 <header class="post-head">
-  {% if post['post_number'] or post['eyebrow'] %}
-  <div class="section-marker post-marker">{% if post['post_number'] %}<span class="num">{{ post['post_number'] }}</span>{% endif %}{% if post['eyebrow'] %}<span class="tag">{{ post['eyebrow'] }}</span>{% endif %}</div>
-  {% endif %}
-  <h1>{{ post['title'] }}</h1>
-  <div class="byline">{% if post['author'] %}Por {{ post['author'] }}{% if post['published_at'] %} · {{ post['published_at'] | fecha_es }}{% endif %}{% elif post['published_at'] %}Publicado el {{ post['published_at'] | fecha_es }}{% else %}Borrador{% endif %}</div>
+  <div class="post-head-row">
+    {% if post['post_number'] %}<span class="post-num">{{ post['post_number'] }}</span>{% endif %}
+    <div class="post-head-main">
+      {% if post['eyebrow'] %}<div class="eyebrow">{{ post['eyebrow'] }}</div>{% endif %}
+      <h1>{{ post['title'] }}</h1>
+      <div class="byline">{% if post['author'] %}Por {{ post['author'] }}{% if post['published_at'] %} · {{ post['published_at'] | fecha_es }}{% endif %}{% elif post['published_at'] %}Publicado el {{ post['published_at'] | fecha_es }}{% else %}Borrador{% endif %}</div>
+    </div>
+  </div>
   {% if post['dek'] %}<p class="lede">{{ post['dek'] }}</p>{% endif %}
   {% if post['status'] == 'draft' %}<p class="lede" style="color:#A63D2F; font-weight:bold;">[BORRADOR — no visible públicamente]</p>{% endif %}
 </header>

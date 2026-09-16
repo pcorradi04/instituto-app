@@ -23,6 +23,8 @@ import tempfile
 TMP_DIR = tempfile.mkdtemp(prefix="instituto-test-")
 os.environ["DB_PATH"] = os.path.join(TMP_DIR, "test.db")
 os.environ["ADMIN_PASSWORD"] = "clave-de-test"
+os.environ["SOCIAL_X"] = "https://x.com/institutoenergia"    # ícono en el banner
+os.environ["SOCIAL_FACEBOOK"] = "no-es-una-direccion"        # se ignora
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import app as appmod  # noqa: E402
@@ -285,9 +287,27 @@ ok(r.status_code == 302 and r.headers["Location"].endswith(f"/admin/posts/{pid}/
 r = anon.get("/post/" + slug)
 ok(r.status_code == 200 and "BORRADOR" not in text(r), "visible públicamente")
 ok(db_row("SELECT post_number FROM posts WHERE id=?", pid)["post_number"] == 1
-   and '<div class="section-marker post-marker"><span class="num">1</span><span class="tag">Prueba</span></div>' in text(r),
-   "primera publicación: recibe el N.º 1, mostrado en caja como los numerales de sección, con la etiqueta")
-ok('class="section-marker card-marker"><span class="num">1</span>' in text(anon.get("/")), "la portada muestra el número de cada post en caja")
+   and '<span class="post-num">1</span>' in text(r) and '<div class="eyebrow">Prueba</div>' in text(r)
+   and text(r).index('class="post-num"') < text(r).index("<h1>"),
+   "primera publicación: recibe el N.º 1, en caja a la izquierda del título, con la etiqueta arriba")
+home = text(anon.get("/"))
+ok('<span class="post-num">1</span><a href="/post/' in home and 'class="btn-read"' in home and "Seguir leyendo" in home
+   and 'Publicado en <a href="/?q=Prueba">Prueba</a>' in home and "Autor de prueba" in home and '<p class="card-excerpt">Copete</p>' in home,
+   "portada: tarjeta por post con categoría, número, título, autor, resumen (el copete) y botón")
+ok('logo-header-gray.png' in home and 'class="brand-blog"' in home and 'aria-label="Buscar"' in home
+   and 'aria-label="X"' in home and 'href="https://x.com/institutoenergia"' in home and 'aria-label="Facebook"' not in home,
+   "banner: logo gris, 'Blog', buscador y solo las redes con dirección válida en el .env")
+ok('class="site-foot"' in home and 'logo-footer-white.png' in home and "Queda prohibida su reproducción" in home,
+   "pie: banda con el logo blanco y el texto legal del Instituto")
+ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
+ok('class="site-foot"' in ehtml and 'logo-header-gray.png' in ehtml and 'placeholder="Buscar..." disabled' in ehtml
+   and 'const INITIAL = {"' in ehtml, "el editor comparte banner y pie (buscador apagado) y conserva su estado inicial")
+save({**GENERAL, "dek": "", "blocks": BLOCKS})
+home = text(anon.get("/"))
+ok('<p class="card-excerpt">Texto con negrita y itálica. Segundo párrafo &lt;script&gt;alert(1)&lt;/script&gt;</p>' in home,
+   "portada sin copete: el resumen es el primer párrafo, sin marcas y sin HTML")
+ok(appmod.excerpt_for(db, {"dek": "", "id": pid}, limit=30) == "Texto con negrita y itálica…", "resumen recortado en palabra entera")
+save({**GENERAL, "blocks": BLOCKS})
 save({**GENERAL, "author": "", "blocks": BLOCKS})
 ok('class="byline">Publicado el ' in text(anon.get("/post/" + slug)), "sin autor: 'Publicado el fecha', sin repetir el nombre del Instituto")
 save({**GENERAL, "blocks": BLOCKS})

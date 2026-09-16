@@ -550,6 +550,26 @@ entre turnos. Estado al cierre de esa ronda:
   unidad, si no solo el nombre; debajo: idem según el paso entre columnas
   (`belowTxt`). Verificado rasterizando el SVG (canvas → PNG subido por
   `/admin/upload` con la sesión de localhost, leído con Read y borrado).
+- **16 sep 2026** — cierre de diseño ("con estos cambios estamos hechos"),
+  con tres capturas: (1) banner blanco en grises: `templates/_brand.html`
+  (incluido por base.html y admin_edit.html con `brand_editor=True` para
+  apagar el buscador; OJO: no usar la variable `editor` en el template del
+  editor, es el JSON del estado) con `logo-header-gray.png` (del "logo
+  gris horizontal", estrellita de la esquina recortada), separador, "Blog",
+  buscador con lupa SVG y redes desde el .env (`SOCIAL_*`, solo las que
+  empiezan con http; `social_links()` + `context_processor`). (2) Número
+  del post en caja a la izquierda del título (`.post-head-row` / `.post-num`
+  / `.post-head-main` con etiqueta, h1 y firma; en el editor igual, "–" gris
+  sin publicar); menos aire (`section{padding:26px 0 58px}`); copete y
+  párrafos sin `max-width`. (3) Portada tipo blog (`.home-band` beige con
+  `.post-card` blancas: "Publicado en <etiqueta>" que busca, número,
+  título, autor/fecha/comentarios con íconos, resumen = copete o primer
+  párrafo (`excerpt_for` / `plain_text`, 230 caracteres en palabra entera),
+  botón "Seguir leyendo…"). (4) Pie: `templates/_footer.html`, banda gris
+  #595959 con `logo-footer-white.png` (del "logo gris invertido") y el
+  texto legal transcripto de la captura de Pedro; el logo azul del pie
+  anterior se sacó (chocaba con la banda gris; el azul queda en acentos).
+  Script de logos: scratchpad `make_brand_logos.py` (Pillow del venv-audio).
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.
