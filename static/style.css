@@ -132,7 +132,7 @@ h2{font-size:clamp(22px,2.4vw,29px); margin:0 0 14px; font-weight:700;}
 .btn-read:hover{filter:brightness(1.15);}
 
 /* ---------- pie: banda gris con el logo blanco y el texto legal ---------- */
-footer.site-foot{background:#595959; color:#fff; padding:28px 4vw 24px; margin-top:44px;}
+footer.site-foot{background:#595959; color:#fff; padding:28px 4vw 24px; margin-top:0;}   /* pegado al contenido, sin franja blanca */
 .foot-inner{display:flex; align-items:center; gap:32px; max-width:1240px; margin:0 auto;}
 .foot-logo{height:104px; width:auto; flex:0 0 auto; display:block;}
 .foot-legal{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; line-height:1.5; margin:0; color:#fff;}
