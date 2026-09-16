@@ -366,7 +366,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
         <div class="embed-preview"></div>
         <div class="chart-source"><input class="ed" placeholder="Epígrafe / fuente (opcional)"></div>
         <div class="chart-data">
-          <div class="row"><label>Alto (px)</label><input type="text" class="eheight" style="flex:0 0 80px; min-width:0"><span class="chelp">Pegá el código HTML completo (por ejemplo, un gráfico animado que te haya hecho una IA) o solo una dirección https: Our World in Data, YouTube, etc. Lo que pegás corre aislado: no puede tocar el sitio.</span></div>
+          <div class="row"><label>Alto (px)</label><input type="text" class="eheight" style="flex:0 0 80px; min-width:0"><button type="button" class="cbtn eupload" title="Elegí un archivo .html: se carga entero acá abajo">Subir archivo HTML</button><input type="file" class="efile" accept=".html,.htm,.txt" hidden><span class="chelp">Subí el archivo .html (o arrastralo acá), pegá el código completo, o poné solo una dirección https: Our World in Data, YouTube, etc. Lo que cargás corre aislado: no puede tocar el sitio.</span></div>
           <textarea class="ehtml" spellcheck="false" placeholder="<!DOCTYPE html>… o https://ourworldindata.org/grapher/energy-mix?country=~ARG"></textarea>
         </div>
       </div></div>`);
@@ -385,6 +385,21 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
       bind(ta, d, 'html', later);
       bind(inH, d, 'height', later);
       bind(n.querySelector('.chart-source input'), d, 'caption');
+      // Subir el archivo .html (botón o arrastrándolo sobre el bloque): el
+      // contenido va al campo, igual que si se pegara.
+      const fileInput = n.querySelector('.efile'), card = n.querySelector('.chart-card');
+      async function loadFile(file) {
+        if (!file) return;
+        const text = await file.text();
+        if (text.length > 200000) { alert('El archivo es muy grande (' + Math.round(text.length / 1000) + ' mil caracteres; el máximo es 200 mil). Si tiene datos adentro, achicalos o dejá menos decimales.'); return; }
+        ta.value = text; ta.dispatchEvent(new Event('input'));
+        ta.scrollTop = 0;
+      }
+      n.querySelector('.eupload').addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', () => { loadFile(fileInput.files[0]); fileInput.value = ''; });
+      card.addEventListener('dragover', e => { e.preventDefault(); card.classList.add('over'); });
+      card.addEventListener('dragleave', () => card.classList.remove('over'));
+      card.addEventListener('drop', e => { e.preventDefault(); card.classList.remove('over'); loadFile(e.dataTransfer.files[0]); });
       n._redraw = paint;
       return n;
     },

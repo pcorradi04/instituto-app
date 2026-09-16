@@ -166,7 +166,9 @@ que se está viendo.
 El bloque **Embed / HTML** muestra adentro del post cualquiera de estas
 dos cosas:
 - **Código HTML completo**, por ejemplo un gráfico animado que te haya
-  generado una IA (con Plotly, D3, Chart.js o lo que sea). Corre aislado
+  generado una IA (con Plotly, D3, Chart.js o lo que sea). Se pega, o se
+  sube el archivo `.html` con el botón "Subir archivo HTML" (o se arrastra
+  sobre el bloque); hasta 200 mil caracteres. Corre aislado
   en un recuadro ("iframe" con sandbox): puede usar librerías de internet
   y mostrar lo que quiera, pero no puede leer ni tocar el sitio, la sesión
   del panel ni los comentarios.
