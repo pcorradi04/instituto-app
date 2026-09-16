@@ -20,6 +20,7 @@
        accentHex = {blue:'#0000CC', orange:'#C1622E', ...}
        onSeriesClick(i, evento): solo el editor; se llama al hacer clic sobre
                    una serie (o su nombre en la leyenda) con el índice de color
+       autoplay: false = los "videos" (bar_race, line_race) no arrancan solos
      parseChartTable(texto) -> {labels, series, rows}   (misma regla que app.py)
      chartColorSlots(tipo, parsed, nombres) -> nombres de cada color a elegir
      chartColorHex(clave o "#RRGGBB") -> hex, o null si no vale
@@ -144,7 +145,10 @@
   const GROUPS = ['Comparación', 'Evolución en el tiempo', 'Composición', 'Distribución e indicadores'];
   const OPT_Y = { key: 'y_title', label: 'Título eje Y', placeholder: 'USD millones' };
   const OPT_UNIT = { key: 'unit', label: 'Unidad', placeholder: 'USD M' };
+  const OPT_SPEED = { key: 'speed', label: 'Velocidad (lento / normal / rápido)', placeholder: 'normal' };
+  const OPT_AUTOPLAY = { key: 'autoplay', label: 'Arranca solo al verse (si/no)', placeholder: 'si' };
   const NAMES_LEGEND = 'Nombres de las series (leyenda)';
+  const RACE_EXAMPLE = '2019 | 507 | 2880 | 886 | 1919 | 918\n2020 | 480 | 3026 | 781 | 1928 | 557\n2021 | 541 | 2905 | 738 | 1928 | 636\n2022 | 622 | 3107 | 754 | 1944 | 716\n2023 | 690 | 3410 | 780 | 1970 | 780\n2024 | 757 | 3450 | 771 | 1950 | 900';
 
   const SPECS = {
     bar_comparison: { label: 'Barras agrupadas', group: 'Comparación', kind: 'canvas',
@@ -203,6 +207,17 @@
       hint: 'Filas históricas: solo "real". Filas futuras: pronóstico y hasta tres bandas anidadas, de la más angosta a la más ancha. El pronóstico se une solo al último dato real.',
       placeholder: '2026-05 | 959.1\n2026-06 | 401.3\n2026-07 | | 536.2 | 481.3 | 591.1 | 422.5 | 649.8 | 330.4 | 741.9\n2026-08 | | 470 | 404.9 | 535.1 | 335.3 | 604.7 | 226.1 | 713.9',
       options: [OPT_Y] },
+    bar_race: { label: 'Carrera de barras (video en el tiempo)', group: 'Evolución en el tiempo', kind: 'html',
+      columns: 'Período | serie 1 | serie 2 | ...   (una fila por año o mes; una columna por país, empresa, fuente...)',
+      names: 'Nombres de las barras (leyenda)', names_placeholder: 'Argentina, Brasil, Colombia, México, Venezuela',
+      hint: 'Un "video": las barras se reordenan y crecen período a período, con play, barra de tiempo y velocidad. Cargá una fila por período y una columna por cada cosa que compite. En el post arranca solo cuando el lector llega al gráfico.',
+      placeholder: RACE_EXAMPLE,
+      options: [{ key: 'top_n', label: 'Cuántas barras se ven', placeholder: '10' }, OPT_UNIT, OPT_SPEED, OPT_AUTOPLAY] },
+    line_race: { label: 'Líneas que se dibujan (video en el tiempo)', group: 'Evolución en el tiempo', kind: 'html',
+      columns: 'Período | serie 1 | serie 2 | ...', names: NAMES_LEGEND, names_placeholder: 'Argentina, Brasil, Colombia, México, Venezuela',
+      hint: 'Como el gráfico de líneas, pero se va dibujando período a período, con play, barra de tiempo y velocidad. En el post arranca solo cuando el lector llega al gráfico.',
+      placeholder: RACE_EXAMPLE,
+      options: [OPT_Y, OPT_SPEED, OPT_AUTOPLAY, { key: 'height', label: 'Alto del gráfico (px)', placeholder: '320' }] },
 
     stacked_bar: { label: 'Barras apiladas', group: 'Composición', kind: 'canvas',
       columns: 'Etiqueta | parte 1 | parte 2 | ...', names: NAMES_LEGEND, names_placeholder: 'Chile, Uruguay, Brasil',
@@ -275,15 +290,16 @@
     treemap: ['Nombre', 'Valor'], sankey: ['Destino', 'Valor'], shaded_list: ['Zona', 'Valor'],
     boxplot: ['Etiqueta', 'Mínimo', 'Cuartil 1', 'Mediana', 'Cuartil 3', 'Máximo'],
     bullet: ['Nombre', 'Valor', 'Referencia', 'Rango bajo', 'Rango alto', 'Máximo de la escala'], gauge: ['Lectura', 'Valor (0 a 100)'],
+    bar_race: ['Período', 'Argentina', 'Brasil', 'Colombia', 'México', 'Venezuela'], line_race: ['Período', 'Argentina', 'Brasil', 'Colombia', 'México', 'Venezuela'],
   };
   Object.entries(HEADERS).forEach(([k, h]) => { if (SPECS[k]) SPECS[k].header = h; });
-  window.CHART_HEADER_NAMES = ['bar_comparison', 'line', 'bar_line', 'stacked_area', 'bump', 'stacked_bar', 'stacked_bar_100', 'heatmap', 'dumbbell', 'bar_horizontal', 'diverging_bar', 'scatter'];
+  window.CHART_HEADER_NAMES = ['bar_comparison', 'line', 'bar_line', 'stacked_area', 'bump', 'stacked_bar', 'stacked_bar_100', 'heatmap', 'dumbbell', 'bar_horizontal', 'diverging_bar', 'scatter', 'bar_race', 'line_race'];
   // Los gráficos de Chart.js aceptan un alto a medida (los de SVG/HTML tienen el suyo).
   const OPT_H = { key: 'height', label: 'Alto del gráfico (px)', placeholder: '360' };
   Object.values(SPECS).forEach(s => { if (s.kind === 'canvas') s.options = (s.options || []).concat([OPT_H]); });
   // Qué colores se eligen en el editor: uno por serie ("series"), uno por
   // bloque o destino ("items": treemap y Sankey), uno solo, o ninguno.
-  const SERIES_TYPES = ['bar_comparison', 'line', 'bar_line', 'stacked_area', 'bump', 'stacked_bar', 'stacked_bar_100', 'scatter', 'dumbbell'];
+  const SERIES_TYPES = ['bar_comparison', 'line', 'bar_line', 'stacked_area', 'bump', 'stacked_bar', 'stacked_bar_100', 'scatter', 'dumbbell', 'bar_race', 'line_race'];
   const ITEM_TYPES = ['treemap', 'sankey'];
   Object.entries(SPECS).forEach(([k, s]) => { s.colorMode = k === 'gauge' ? 'none' : (SERIES_TYPES.includes(k) ? 'series' : (ITEM_TYPES.includes(k) ? 'items' : 'single')); });
   const MAX_COLORS = 24;
@@ -725,6 +741,95 @@
     return htmlIn(c, svg);
   };
 
+  // ---- "videos": gráficos que avanzan en el tiempo con play -----------------
+  // Los dos tipos comparten los controles (play/pausa, barra de tiempo,
+  // velocidad) y el manejo del tiempo (raceController). El estado queda en el
+  // contenedor: si el gráfico se redibuja (cambio de ancho) sigue en el mismo
+  // período. En el post arranca solo la primera vez que entra en pantalla,
+  // salvo que la opción autoplay diga que no; en el editor nunca arranca solo.
+  const SPEEDS = { lento: 1500, normal: 900, 'rápido': 450, rapido: 450 };
+  const raceControls = (n, speedKey) => {
+    const ms = SPEEDS[String(speedKey || '').trim().toLowerCase()] || 900;
+    return `<div class="race-ctl"><button type="button" class="race-play" title="Reproducir / pausar">▶</button>` +
+      `<input type="range" class="race-slider" min="0" max="${Math.max(n - 1, 0)}" value="0" title="Período"><span class="race-cur"></span>` +
+      `<select class="race-speed" title="Velocidad">${[[1500, 'lento'], [900, 'normal'], [450, 'rápido']].map(([v, t]) => `<option value="${v}"${v === ms ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`;
+  };
+  function raceController(c, periods, show, o, options) {
+    const n = periods.length;
+    const play = c.querySelector('.race-play'), slider = c.querySelector('.race-slider'), cur = c.querySelector('.race-cur'), speedSel = c.querySelector('.race-speed');
+    const st = (c._race && c._race.n === n) ? c._race : { idx: 0, n, playing: false, auto: false };
+    c._race = st;
+    const stopTimer = () => { if (c._raceTimer) { clearInterval(c._raceTimer); c._raceTimer = null; } };
+    stopTimer();
+    const paint = () => { show(st.idx); slider.value = st.idx; cur.textContent = periods[st.idx]; play.textContent = st.playing ? '❚❚' : (st.idx >= n - 1 ? '↻' : '▶'); };
+    const stop = () => { st.playing = false; stopTimer(); paint(); };
+    const start = () => {
+      if (n < 2) return;
+      if (st.idx >= n - 1) st.idx = 0;
+      st.playing = true; paint();
+      c._raceTimer = setInterval(() => {
+        if (!c.isConnected) return stopTimer();   // el gráfico ya no está en la página
+        st.idx = Math.min(st.idx + 1, n - 1);
+        if (st.idx >= n - 1) { st.playing = false; stopTimer(); }
+        paint();
+      }, +speedSel.value);
+    };
+    play.addEventListener('click', () => (st.playing ? stop() : start()));
+    slider.addEventListener('input', () => { const v = +slider.value; stop(); st.idx = v; paint(); });   // leer antes de stop(): paint() pisa el slider
+    speedSel.addEventListener('change', () => { if (st.playing) { stopTimer(); st.playing = false; start(); } });
+    st.playing = false;
+    paint();
+    const auto = (options.autoplay === undefined || options.autoplay === '') ? true : yes(options.autoplay);
+    if (o.autoplay !== false && auto && !st.auto && n > 1 && 'IntersectionObserver' in window) {
+      const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); if (!st.auto) { st.auto = true; start(); } } }, { threshold: 0.35 });
+      io.observe(c);
+    }
+  }
+  R.bar_race = (c, def, P, o) => {
+    const n = def.labels.length;
+    if (!n || !def.series.length) return htmlIn(c, '');
+    const names = def.series.map((_, i) => seriesName(def, i));
+    const topN = Math.max(2, Math.min(parseInt(def.options.top_n, 10) || 10, def.series.length));
+    const rowH = 34, unit = def.options.unit || '';
+    htmlIn(c, raceControls(n, def.options.speed) + `<div class="race-bars" style="height:${topN * rowH}px">` +
+      names.map((nm, i) => `<div class="race-row" data-si="${i}"><div class="race-bar" style="background:${P[i % P.length]}"></div><span class="race-lbl"><span class="race-name">${esc(nm)}</span> <b class="race-val"></b></span></div>`).join('') +
+      '<div class="race-period"></div></div>');
+    const rows = [...c.querySelectorAll('.race-row')], period = c.querySelector('.race-period');
+    const show = idx => {
+      const vals = def.series.map(s => s[idx]);
+      const order = names.map((_, i) => i).filter(i => vals[i] != null).sort((a, b) => vals[b] - vals[a]);
+      const maxV = Math.max(0, ...order.map(i => vals[i])) || 1;
+      rows.forEach(r => { r.style.opacity = 0; r.style.top = (topN * rowH) + 'px'; });
+      order.slice(0, topN).forEach((i, rank) => {
+        const r = rows[i], pct = Math.max(vals[i] / maxV * 100, 0.5), lbl = r.querySelector('.race-lbl'), inside = pct >= 45;
+        r.style.opacity = 1; r.style.top = (rank * rowH) + 'px';
+        r.querySelector('.race-bar').style.width = pct + '%';
+        r.querySelector('.race-val').textContent = fmt(vals[i]) + (unit ? ' ' + unit : '');
+        lbl.classList.toggle('in', inside);
+        lbl.style.left = inside ? '0' : pct + '%';
+        lbl.style.width = inside ? pct + '%' : 'auto';
+      });
+      period.textContent = def.labels[idx];
+    };
+    raceController(c, def.labels, show, o, def.options);
+    return null;
+  };
+  R.line_race = (c, def, P, o) => {
+    const n = def.labels.length;
+    if (!n || !def.series.length || typeof Chart === 'undefined') return htmlIn(c, '');
+    const h = parseInt(def.options.height, 10);
+    htmlIn(c, raceControls(n, def.options.speed) + `<div class="race-stage" style="height:${(h >= 120 && h <= 1200) ? h : 320}px"><canvas></canvas></div>`);
+    const all = def.series.flat().filter(v => v != null);
+    const maxV = Math.max(0, ...all), minV = Math.min(0, ...all);
+    const opt = baseOptions(o); opt.animation = false;
+    opt.scales = { y: axis(def.options.y_title, { min: minV, suggestedMax: maxV * 1.05 }), x: noGrid() };
+    const chart = new Chart(c.querySelector('canvas'), { type: 'line', options: opt, data: { labels: def.labels,
+      datasets: def.series.map((s, i) => ({ label: seriesName(def, i), data: s.map(() => null), borderColor: P[i % P.length], backgroundColor: P[i % P.length], borderWidth: 2.2, pointRadius: 2, tension: 0.2, spanGaps: false, _si: i })) } });
+    const show = idx => { chart.data.datasets.forEach((ds, i) => { ds.data = def.series[i].map((v, k) => (k <= idx ? v : null)); }); chart.update('none'); };
+    raceController(c, def.labels, show, o, def.options);
+    return chart;
+  };
+
   // ---- punto de entrada -----------------------------------------------------
   window.renderPostChart = function (container, def, accentHex, opts) {
     opts = opts || {}; accentHex = accentHex || {};
@@ -764,7 +869,7 @@
       }) : null;
     }
     container.classList.toggle('pickable', !!onSeriesClick);
-    return fn(container, def, P, { animate: opts.animate !== false, onSeriesClick });
+    return fn(container, def, P, { animate: opts.animate !== false, onSeriesClick, autoplay: opts.autoplay !== false });
   };
 
   // ---- copiar / descargar una tarjeta de gráfico como PNG ------------------

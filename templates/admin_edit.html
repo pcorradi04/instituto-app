@@ -39,7 +39,7 @@
   <ol class="guide-steps" id="guideSteps" hidden>
     <li><b>Encabezado.</b> Esto es el post tal como lo van a ver los lectores: tocá el texto gris y escribí encima. Etiqueta (la categoría, ej. "Comercio Exterior"), título, quién firma y el copete.</li>
     <li><b>Bloques.</b> Secciones, párrafos, destacados, gráficos e imágenes se agregan con los botones del final. Para meter uno en el medio, pasá el mouse entre dos bloques: aparece "insertar acá". Con ↑ y ↓ los reordenás; con ✕ los borrás.</li>
-    <li><b>Gráficos.</b> Elegí el tipo, pegá la tabla (una fila por línea, columnas separadas con "|") y se dibuja solo. Si no sabés qué formato lleva, tocá <i>Cargar ejemplo</i> y editá sobre eso. Para cambiar el color de una serie, hacé clic sobre ella en el gráfico (o en su nombre en la leyenda).</li>
+    <li><b>Gráficos.</b> Elegí el tipo, pegá la tabla (una fila por línea, columnas separadas con "|") y se dibuja solo. Si no sabés qué formato lleva, tocá <i>Cargar ejemplo</i> y editá sobre eso. Para cambiar el color de una serie, hacé clic sobre ella en el gráfico (o en su nombre en la leyenda). Para un gráfico con play, tipo video, elegí <i>Carrera de barras</i> o <i>Líneas que se dibujan</i>; para pegar código HTML (por ejemplo, un gráfico animado hecho con IA) o una dirección de Our World in Data o YouTube, usá el bloque <i>Embed / HTML</i>.</li>
     <li><b>Guardar.</b> Ctrl+S o el botón Guardar, las veces que quieras. Mientras no publiques, nadie lo ve; con "Ver post ↗" lo mirás como lector.</li>
     <li><b>Publicar.</b> El post recibe su número, aparece en la portada y su dirección queda fija. Después podés seguir editándolo: los cambios salen al guardar.</li>
   </ol>
@@ -74,6 +74,7 @@
     <button type="button" data-add="chart"><b>Gráfico</b><small>20 tipos; pegás una tabla de datos</small></button>
     <button type="button" data-add="figure"><b>Figura</b><small>2 o 3 gráficos lado a lado</small></button>
     <button type="button" data-add="image"><b>Imagen</b><small>subís una foto o captura</small></button>
+    <button type="button" data-add="embed"><b>Embed / HTML</b><small>código de una IA, Our World in Data, YouTube…</small></button>
   </div>
 </section>
 </main>
@@ -172,7 +173,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
   applyAccent();
 
   // ---- bloques ------------------------------------------------------------
-  const LABEL = { heading: 'Título de sección', paragraph: 'Párrafo', callout: 'Destacado', chart: 'Gráfico', figure: 'Figura (varios gráficos)', image: 'Imagen' };
+  const LABEL = { heading: 'Título de sección', paragraph: 'Párrafo', callout: 'Destacado', chart: 'Gráfico', figure: 'Figura (varios gráficos)', image: 'Imagen', embed: 'Embed / HTML' };
   const panelDefault = () => ({ title: '', chart_type: 'bar_comparison', color: 'orange', series_names: '', table: '', options: {} });
   const DEFAULTS = {
     heading: () => ({ tag: '', title: '' }),
@@ -181,6 +182,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
     chart: () => ({ chart_type: 'bar_comparison', title: '', subtitle: '', note: '', source: '', color: 'orange', series_names: '', table: '', options: {} }),
     figure: () => ({ title: '', subtitle: '', note: '', source: '', panels: [panelDefault(), panelDefault()] }),
     image: () => ({ url: '', caption: '' }),
+    embed: () => ({ html: '', height: '480', caption: '' }),
   };
   const debounced = fn => { let t = null; return () => { clearTimeout(t); t = setTimeout(fn, 150); }; };
 
@@ -353,6 +355,37 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
       addBtn.addEventListener('click', () => { if (d.panels.length >= 3) return; d.panels.push(panelDefault()); dirty(); renderPanels(); });
       renderPanels();
       n._redraw = () => redraws.forEach(f => f());
+      return n;
+    },
+    // Embed: código HTML completo (corre aislado en un iframe con sandbox) o
+    // una dirección https sola (iframe normal). La vista previa es la misma
+    // que va a ver el lector.
+    embed(b) {
+      const d = b.data;
+      const n = el(`<div class="blk" data-uid="${b.uid}"><div class="chart-card embed-card">
+        <div class="embed-preview"></div>
+        <div class="chart-source"><input class="ed" placeholder="Epígrafe / fuente (opcional)"></div>
+        <div class="chart-data">
+          <div class="row"><label>Alto (px)</label><input type="text" class="eheight" style="flex:0 0 80px; min-width:0"><span class="chelp">Pegá el código HTML completo (por ejemplo, un gráfico animado que te haya hecho una IA) o solo una dirección https: Our World in Data, YouTube, etc. Lo que pegás corre aislado: no puede tocar el sitio.</span></div>
+          <textarea class="ehtml" spellcheck="false" placeholder="<!DOCTYPE html>… o https://ourworldindata.org/grapher/energy-mix?country=~ARG"></textarea>
+        </div>
+      </div></div>`);
+      n.prepend(tools(b));
+      const box = n.querySelector('.embed-preview'), ta = n.querySelector('.ehtml'), inH = n.querySelector('.eheight');
+      const paint = () => {
+        const html = String(d.html || '').trim(), h = Math.max(120, Math.min(parseInt(d.height, 10) || 480, 2000));
+        box.innerHTML = '';
+        if (!html) { box.appendChild(el('<div class="chart-empty">Pegá abajo el código HTML o la dirección: acá aparece la vista previa, igual que en el post.</div>')); return; }
+        const f = document.createElement('iframe'); f.className = 'embed-frame'; f.style.height = h + 'px';
+        if (!html.includes('<') && /^https?:\/\//i.test(html)) { f.src = html; }
+        else { f.setAttribute('sandbox', 'allow-scripts allow-popups allow-forms allow-modals'); f.srcdoc = html; }
+        box.appendChild(f);
+      };
+      const later = debounced(paint);
+      bind(ta, d, 'html', later);
+      bind(inH, d, 'height', later);
+      bind(n.querySelector('.chart-source input'), d, 'caption');
+      n._redraw = paint;
       return n;
     },
     image(b) {
@@ -628,7 +661,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
     if (!has) return;
     const names = String(d.series_names || '').split(',').map(s => s.trim()).filter(Boolean);
     renderPostChart(wrap, { chart_type: d.chart_type, title: d.title, labels: parsed.labels, series: parsed.series, rows: parsed.rows,
-                            series_names: names, color: d.color, colors: d.colors || [], options: d.options }, ACCENT_HEX, { animate: false, onSeriesClick });
+                            series_names: names, color: d.color, colors: d.colors || [], options: d.options }, ACCENT_HEX, { animate: false, onSeriesClick, autoplay: false });
   }
   // El cuadro "todavía no hay datos" ofrece cargar el ejemplo del panel.
   function emptyWithExample(empty, dp) {
@@ -699,7 +732,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
 
   // Barra fina entre bloques: al pasar el mouse muestra "insertar acá".
   const INS_HTML = '<div class="ins"><span class="ins-line"></span><span class="ins-btns"><span class="ins-lbl">insertar acá:</span>' +
-    [['heading', 'Sección'], ['paragraph', 'Párrafo'], ['callout', 'Destacado'], ['chart', 'Gráfico'], ['figure', 'Figura'], ['image', 'Imagen']]
+    [['heading', 'Sección'], ['paragraph', 'Párrafo'], ['callout', 'Destacado'], ['chart', 'Gráfico'], ['figure', 'Figura'], ['image', 'Imagen'], ['embed', 'Embed']]
       .map(([t, l]) => `<button type="button" data-add="${t}">+ ${l}</button>`).join('') + '</span></div>';
   function insertBar(at) {
     const bar = el(INS_HTML);

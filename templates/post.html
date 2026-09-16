@@ -81,8 +81,19 @@
         </div>
       </div>
 
-    {% elif b.type in ['chart', 'figure', 'image'] and session.get('is_admin') %}
-      <p class="comments-intro" style="font-style:italic;">[{{ {'chart': 'Gráfico', 'figure': 'Figura', 'image': 'Imagen'}[b.type] }} sin datos: no se muestra a los lectores. Cargalo o borralo desde el editor.]</p>
+    {% elif b.type == 'embed' and b.data.html %}
+      {# HTML pegado: iframe aislado (sandbox sin same-origin: no ve cookies ni el sitio). Dirección https: iframe normal. #}
+      <div class="chart-card embed-card">
+        {% if '<' not in b.data.html and b.data.html.startswith('https://') %}
+        <iframe class="embed-frame" src="{{ b.data.html }}" style="height:{{ b.data.height }}px" loading="lazy" allowfullscreen allow="fullscreen; clipboard-write; web-share" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        {% else %}
+        <iframe class="embed-frame" sandbox="allow-scripts allow-popups allow-forms allow-modals" srcdoc="{{ b.data.html }}" style="height:{{ b.data.height }}px" loading="lazy"></iframe>
+        {% endif %}
+        {% if b.data.caption %}<div class="chart-source">{{ b.data.caption }}</div>{% endif %}
+      </div>
+
+    {% elif b.type in ['chart', 'figure', 'image', 'embed'] and session.get('is_admin') %}
+      <p class="comments-intro" style="font-style:italic;">[{{ {'chart': 'Gráfico', 'figure': 'Figura', 'image': 'Imagen', 'embed': 'Embed'}[b.type] }} sin datos: no se muestra a los lectores. Cargalo o borralo desde el editor.]</p>
     {% endif %}
   {% endfor %}
 

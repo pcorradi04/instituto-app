@@ -143,6 +143,10 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .cpop-custom input[type=color]{width:38px; height:26px; padding:0; border:1px solid var(--line); background:#fff; cursor:pointer;}
 .cpop-custom .cpop-hex{width:84px; font-family:inherit; font-size:11px; padding:4px 6px; border:1px solid var(--line); background:#fdfdfb; text-transform:uppercase;}
 
+/* embed */
+.chart-data .ehtml{font-family:'Courier New',monospace; font-size:11.5px; min-height:120px;}
+.embed-preview .chart-empty{min-height:120px;}
+
 /* imagen */
 .img-area{position:relative;}
 .img-drop{display:block; border:2px dashed var(--line); padding:44px 20px; text-align:center; color:var(--ink-soft); cursor:pointer; background:#fdfdfb; font-size:14px;}

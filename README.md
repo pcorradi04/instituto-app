@@ -147,6 +147,36 @@ python test_app.py
    que solo ves vos, logueado ("Ver post ↗" te lo muestra tal cual va a
    quedar).
 
+## 2a. Gráficos con play ("videos") y embeds
+
+Hay dos tipos de gráfico que se mueven en el tiempo, pensados para mostrar
+una evolución como si fuera un video: **Carrera de barras** (las barras se
+reordenan y crecen período a período, como los rankings animados) y
+**Líneas que se dibujan** (un gráfico de líneas que se va trazando). Los
+dos se cargan igual que cualquier otro: una fila por período (año, mes) y
+una columna por país, empresa o fuente, a mano, pegando desde Excel o con
+"Subir Excel o CSV" (la "Plantilla Excel" trae la estructura). Tienen
+botón de play y pausa, una barra de tiempo para ir a cualquier período, y
+velocidad (lento, normal, rápido). En el post arrancan solos cuando el
+lector llega al gráfico (opción "Arranca solo al verse: no" para que
+espere el play). Opciones: cuántas barras se ven, unidad, título del eje.
+Los botones "Copiar PNG" y "Descargar PNG" sacan la imagen del momento
+que se está viendo.
+
+El bloque **Embed / HTML** muestra adentro del post cualquiera de estas
+dos cosas:
+- **Código HTML completo**, por ejemplo un gráfico animado que te haya
+  generado una IA (con Plotly, D3, Chart.js o lo que sea). Corre aislado
+  en un recuadro ("iframe" con sandbox): puede usar librerías de internet
+  y mostrar lo que quiera, pero no puede leer ni tocar el sitio, la sesión
+  del panel ni los comentarios.
+- **Una dirección https sola**: la de un gráfico de Our World in Data
+  (con los países elegidos, ej. `...?country=ARG~BRA`), un video de
+  YouTube (sirve el link normal de "watch"), etc. Solo se aceptan
+  direcciones seguras (https).
+Se le pone el alto en píxeles y un epígrafe opcional; en el editor se ve
+la misma vista previa que va a ver el lector.
+
 ## 2b. Comentarios de lectores
 
 Cada post publicado tiene al pie una sección de comentarios. Cualquier

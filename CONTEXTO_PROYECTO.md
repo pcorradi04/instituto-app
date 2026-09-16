@@ -576,6 +576,25 @@ entre turnos. Estado al cierre de esa ronda:
   libre; se agregó el filtro Jinja `tags` (separa por ";") y en portada y
   post cada etiqueta es un link a `/?q=<etiqueta>` (la búsqueda ya hacía
   LIKE sobre eyebrow). Se le explicó que es un rótulo, no una carpeta.
+- **16 sep 2026 (tarde)** — Luciano mandó ourworldindata.org/energy-mix y
+  preguntó si se puede embeber y replicar el "play" con Argentina; Pedro
+  pidió las dos cosas: gráficos "video" propios desde CSV/Excel y poder
+  incrustar un HTML generado con IA. (1) Tipos `bar_race` (carrera de
+  barras en HTML/CSS con transiciones, `top_n`, unidad) y `line_race`
+  (Chart.js, los puntos aparecen período a período), kind html, colorMode
+  series; controles compartidos `raceControls` + `raceController` (play /
+  pausa / barra de tiempo / velocidad lento-normal-rápido; estado en
+  `container._race` para sobrevivir al redibujo por resize; autoplay al
+  entrar en pantalla con IntersectionObserver, opción `autoplay=no`; el
+  editor pasa `autoplay:false`). Ejemplo: producción de crudo AR/BR/CO/
+  MX/VE 2019–2024 (aprox. EI Statistical Review). (2) Bloque `embed`:
+  `html` (hasta 200k chars) o dirección; `normalize_embed_url` exige https
+  y convierte YouTube watch/youtu.be a /embed/; alto 120–2000. En el post:
+  HTML → `<iframe sandbox="allow-scripts allow-popups allow-forms
+  allow-modals" srcdoc=…>` (sin allow-same-origin: no ve cookies ni el
+  DOM del sitio); dirección → iframe normal con allowfullscreen. Editor:
+  RENDER.embed con vista previa idéntica. Sin botones PNG en embeds
+  (html2canvas no captura iframes). Tests: 140 chequeos.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

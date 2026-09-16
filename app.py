@@ -89,10 +89,25 @@ CHART_TYPES = [
     "line", "bar_line", "stacked_area", "bump", "heatmap", "waterfall", "fan_chart",
     "stacked_bar", "stacked_bar_100", "treemap", "sankey", "shaded_list",
     "boxplot", "bullet", "gauge",
+    "bar_race", "line_race",   # "videos": avanzan en el tiempo con play
 ]
 # "figure" = varios gráficos uno al lado del otro (hasta 3) con título,
 # subtítulo, nota al pie y fuente en común, al estilo de los "exhibits".
-BLOCK_TYPES = ["heading", "paragraph", "callout", "chart", "figure", "image"]
+# "embed" = código HTML (ej. un gráfico animado hecho con IA) o una dirección
+# https (Our World in Data, YouTube...) que el post muestra en un iframe: el
+# HTML pegado corre aislado (sandbox), sin acceso a la sesión ni al sitio.
+BLOCK_TYPES = ["heading", "paragraph", "callout", "chart", "figure", "image", "embed"]
+EMBED_MAX_CHARS = 200_000
+
+
+def normalize_embed_url(url):
+    """Una dirección sola en el bloque Embed: solo https. Los links de YouTube
+    "watch" o "youtu.be" pasan a la forma que se puede incrustar."""
+    url = url.strip()
+    m = re.match(r"https://(?:www\.|m\.)?youtube\.com/watch\?(?:.*&)?v=([\w-]+)", url) or re.match(r"https://youtu\.be/([\w-]+)", url)
+    if m:
+        return "https://www.youtube.com/embed/" + m.group(1)
+    return url if url.startswith("https://") and " " not in url else ""
 MAX_FIGURE_PANELS = 3
 # Colores de un gráfico: hasta 24 (uno por serie, bloque o destino), cada uno
 # una clave de la paleta de static/charts.js o un "#RRGGBB" libre.
@@ -986,6 +1001,15 @@ def block_data_from_form(block_type, form):
         return {"color": color, "text": form.get("text", "").strip()}
     if block_type == "image":
         return {"url": form.get("url", "").strip(), "caption": form.get("caption", "").strip()}
+    if block_type == "embed":
+        html = str(form.get("html") or "").strip()[:EMBED_MAX_CHARS]
+        if html and "<" not in html:      # una dirección sola
+            html = normalize_embed_url(html)
+        try:
+            height = int(float(form.get("height") or 480))
+        except (TypeError, ValueError):
+            height = 480
+        return {"html": html, "height": max(120, min(height, 2000)), "caption": form.get("caption", "").strip()}
     if block_type == "chart":
         chart_type = form.get("chart_type", "bar_comparison")
         if chart_type not in CHART_TYPES:
