@@ -84,8 +84,8 @@ h2{font-size:clamp(22px,2.4vw,29px); margin:0 0 14px; font-weight:700;}
    sale en el PNG). */
 .chart-head{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:12px; min-height:60px;}
 .chart-head .chart-titles{flex:1; min-width:0;}
-.chart-logo{width:120px; height:auto; flex:0 0 auto; opacity:.9;}
-.chart-card h3{font-size:16px; margin:0 0 2px; color:var(--ink); font-weight:700;}
+.chart-logo{width:104px; height:auto; flex:0 0 auto; opacity:.9;}   /* apenas más chico */
+.chart-card h3{font-size:19px; line-height:1.25; margin:0 0 3px; color:var(--ink); font-weight:700;}   /* título más grande */
 .chart-card .sub{font-size:12.5px; color:var(--ink-soft); font-style:italic;}
 .chart-note{font-size:11px; color:var(--ink-soft); margin-top:10px; line-height:1.45; max-width:110ch;}
 /* Figura: varios gráficos lado a lado, con título, nota y fuente en común. */
@@ -106,7 +106,7 @@ h2{font-size:clamp(22px,2.4vw,29px); margin:0 0 14px; font-weight:700;}
 .legend-row{display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; color:var(--ink-soft); margin-bottom:8px;}
 .legend-row span{display:inline-flex; align-items:center; gap:5px;}
 .legend-row .dot{width:9px; height:9px; border-radius:50%; display:inline-block;}
-.chart-source{font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-top:12px;}
+.chart-source{font-size:9.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-top:12px;}   /* fuente más chica */
 
 /* ---------- callouts ---------- */
 .callout{background:var(--paper-2); border-left:3px solid var(--orange); padding:16px 22px; font-size:15px; color:var(--ink); margin:18px 0 28px;}   /* mismo ancho que las tarjetas de gráficos */
@@ -194,7 +194,7 @@ form.inline{display:inline;}
   .post-card{padding:18px 16px 20px;}
   .foot-inner{flex-direction:column; align-items:flex-start; gap:18px;}
   .foot-logo{height:80px;}
-  .chart-logo{width:90px;}
+  .chart-logo{width:80px;}
   .figure-grid.cols-2, .figure-grid.cols-3{grid-template-columns:1fr;}
   .figure-panel + .figure-panel{border-left:0; padding-left:0; border-top:1px solid var(--line); padding-top:16px;}
   .comment-form .row{grid-template-columns:1fr;}
