@@ -221,6 +221,7 @@ r = save({**GENERAL, "blocks": [
     {"type": "embed", "data": {"html": "https://www.youtube.com/watch?v=abc123XYZ_-&t=5", "height": "9999"}},
     {"type": "embed", "data": {"html": "http://inseguro.com/x", "height": "50"}},
     {"type": "embed", "data": {"html": "https://ourworldindata.org/grapher/energy-mix?country=~ARG", "height": "600"}},
+    {"type": "embed", "data": {"html": '<iframe src="https://ourworldindata.org/grapher/exponential-growth?tab=chart" loading="lazy" style="width: 100%; height: 650px; border: 0px none;" allow="web-share; clipboard-write"></iframe>', "height": "480"}},
     {"type": "chart", "data": {"chart_type": "bar_race", "title": "Carrera", "series_names": "AR, BR", "table": "2019 | 1 | 2\n2020 | 3 | 1", "options": {"top_n": "5", "speed": "rápido"}}},
     {"type": "chart", "data": {"chart_type": "line_race", "table": "2019 | 1 | 2\n2020 | 3 | 1"}},
 ]})
@@ -229,16 +230,19 @@ ok(r.status_code == 200 and bl[0]["data"]["html"].startswith("<div") and bl[0]["
    and bl[1]["data"]["html"] == "https://www.youtube.com/embed/abc123XYZ_-" and bl[1]["data"]["height"] == 2000
    and bl[2]["data"]["html"] == "" and bl[2]["data"]["height"] == 120 and bl[3]["data"]["html"].startswith("https://ourworldindata.org/"),
    "embed: HTML tal cual; YouTube 'watch' pasa a 'embed'; http sin s se rechaza; alto entre 120 y 2000")
+ok(bl[4]["data"]["html"] == "https://ourworldindata.org/grapher/exponential-growth?tab=chart" and bl[4]["data"]["height"] == 650,
+   "embed: el 'código para embeber' de Our World in Data (un solo iframe) se convierte en la dirección, con su alto")
 html = text(c.get("/post/" + slug))
 ok('sandbox="allow-scripts allow-popups allow-forms allow-modals" srcdoc="&lt;div id=&#34;x&#34;&gt;Hola &lt;script&gt;' in html
    and '<iframe class="embed-frame" src="https://www.youtube.com/embed/abc123XYZ_-"' in html
    and 'src="https://ourworldindata.org/grapher/energy-mix?country=~ARG"' in html
-   and html.count("<iframe") == 3 and "Embed sin datos" in html and "Hecho con IA" in html,
+   and 'src="https://ourworldindata.org/grapher/exponential-growth?tab=chart" style="height:650px"' in html
+   and html.count("<iframe") == 4 and "Embed sin datos" in html and "Hecho con IA" in html,
    "post: el HTML va en un iframe aislado (sandbox, sin acceso al sitio), las direcciones en un iframe normal; el embed vacío solo avisa al admin")
 ok('"chart_type": "bar_race"' in html and '"top_n": "5"' in html and '"chart_type": "line_race"' in html, "los gráficos 'video' llegan a charts.js con sus opciones")
 ok("R.bar_race" in js and "R.line_race" in js and "function raceController" in js and "IntersectionObserver" in js,
    "charts.js: carrera de barras y líneas que se dibujan, con play y arranque al entrar en pantalla")
-ok("<iframe" not in text(anon.get("/post/" + slug)).split('id="comentarios"')[0].replace('<iframe class="embed-frame"', '', 3), "sin más iframes que los tres embeds")
+ok("<iframe" not in text(anon.get("/post/" + slug)).split('id="comentarios"')[0].replace('<iframe class="embed-frame"', '', 4), "sin más iframes que los cuatro embeds")
 save({**GENERAL, "blocks": BLOCKS2})
 html = text(c.get("/post/" + slug))   # los chequeos que siguen miran el post con BLOCKS2
 ok('<a href="https://indec.gob.ar/x?a=1&amp;b=2" target="_blank" rel="noopener">el informe</a>' in html

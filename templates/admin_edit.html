@@ -372,10 +372,18 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
       </div></div>`);
       n.prepend(tools(b));
       const box = n.querySelector('.embed-preview'), ta = n.querySelector('.ehtml'), inH = n.querySelector('.eheight');
+      // El "código para embeber" de Our World in Data, YouTube, etc. es un solo
+      // <iframe src="https://..."> (con el alto en el style): se usa la
+      // dirección directa, como hace el servidor al guardar.
+      const iframeOnly = html => { const m = html.match(/^\s*<iframe\b([^>]*)>\s*<\/iframe>\s*$/i); if (!m) return null;
+        const src = m[1].match(/\bsrc\s*=\s*["']([^"']+)["']/i), h = m[1].match(/height\s*:\s*(\d+)\s*px/i) || m[1].match(/\bheight\s*=\s*["']?(\d+)/i);
+        return src && /^https:\/\//i.test(src[1]) ? { src: src[1], h: h ? parseInt(h[1], 10) : null } : null; };
       const paint = () => {
-        const html = String(d.html || '').trim(), h = Math.max(120, Math.min(parseInt(d.height, 10) || 480, 2000));
+        let html = String(d.html || '').trim(), h = Math.max(120, Math.min(parseInt(d.height, 10) || 480, 2000));
         box.innerHTML = '';
         if (!html) { box.appendChild(el('<div class="chart-empty">Pegá abajo el código HTML o la dirección: acá aparece la vista previa, igual que en el post.</div>')); return; }
+        const only = iframeOnly(html);
+        if (only) { html = only.src; if (only.h && (parseInt(d.height, 10) || 480) === 480) { h = Math.max(120, Math.min(only.h, 2000)); d.height = String(h); inH.value = d.height; } }
         const f = document.createElement('iframe'); f.className = 'embed-frame'; f.style.height = h + 'px';
         if (!html.includes('<') && /^https?:\/\//i.test(html)) { f.src = html; }
         else { f.setAttribute('sandbox', 'allow-scripts allow-popups allow-forms allow-modals'); f.srcdoc = html; }

@@ -108,6 +108,27 @@ def normalize_embed_url(url):
     if m:
         return "https://www.youtube.com/embed/" + m.group(1)
     return url if url.startswith("https://") and " " not in url else ""
+
+
+# El "código para embeber" que dan Our World in Data, YouTube, etc. es solo un
+# <iframe src="https://..."> (a veces con el alto en el style). Se reconoce y
+# se usa la dirección directamente: dentro de la caja aislada del HTML propio
+# esas páginas no funcionan.
+IFRAME_ONLY_RE = re.compile(r'^\s*<iframe\b([^>]*)>\s*</iframe>\s*$', re.IGNORECASE)
+
+
+def iframe_only(html):
+    """Si el HTML es un solo <iframe src="https://..."></iframe>, devuelve
+    (src, alto o None); si no, None."""
+    m = IFRAME_ONLY_RE.match(html or "")
+    if not m:
+        return None
+    attrs = m.group(1)
+    src = re.search(r'''\bsrc\s*=\s*["']([^"']+)["']''', attrs, re.IGNORECASE)
+    if not src or not src.group(1).startswith("https://"):
+        return None
+    h = re.search(r'''height\s*:\s*(\d+)\s*px''', attrs, re.IGNORECASE) or re.search(r'''\bheight\s*=\s*["']?(\d+)''', attrs, re.IGNORECASE)
+    return src.group(1), (int(h.group(1)) if h else None)
 MAX_FIGURE_PANELS = 3
 # Colores de un gráfico: hasta 24 (uno por serie, bloque o destino), cada uno
 # una clave de la paleta de static/charts.js o un "#RRGGBB" libre.
@@ -1003,12 +1024,17 @@ def block_data_from_form(block_type, form):
         return {"url": form.get("url", "").strip(), "caption": form.get("caption", "").strip()}
     if block_type == "embed":
         html = str(form.get("html") or "").strip()[:EMBED_MAX_CHARS]
-        if html and "<" not in html:      # una dirección sola
-            html = normalize_embed_url(html)
         try:
             height = int(float(form.get("height") or 480))
         except (TypeError, ValueError):
             height = 480
+        only = iframe_only(html)
+        if only:                          # código de embeber de OWID, YouTube...: solo la dirección
+            html = normalize_embed_url(only[0])
+            if only[1] and height == 480:
+                height = only[1]
+        elif html and "<" not in html:    # una dirección sola
+            html = normalize_embed_url(html)
         return {"html": html, "height": max(120, min(height, 2000)), "caption": form.get("caption", "").strip()}
     if block_type == "chart":
         chart_type = form.get("chart_type", "bar_comparison")

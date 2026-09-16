@@ -175,7 +175,9 @@ dos cosas:
 - **Una dirección https sola**: la de un gráfico de Our World in Data
   (con los países elegidos, ej. `...?country=ARG~BRA`), un video de
   YouTube (sirve el link normal de "watch"), etc. Solo se aceptan
-  direcciones seguras (https).
+  direcciones seguras (https). También sirve pegar el "código para
+  embeber" que dan esos sitios (un `<iframe src="https://...">`): el
+  bloque saca de ahí la dirección y el alto.
 Se le pone el alto en píxeles y un epígrafe opcional; en el editor se ve
 la misma vista previa que va a ver el lector.
 
