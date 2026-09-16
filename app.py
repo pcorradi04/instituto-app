@@ -16,6 +16,7 @@ Ver README.md para instrucciones de deploy a un hosting real.
 
 import os
 import re
+import csv
 import json
 import sqlite3
 import unicodedata
@@ -452,33 +453,84 @@ def notify_new_comment(post, cid, name, email, body, pending):
     send_email_async(f"[Blog Instituto de Energía] {subject}", text)
 
 
-def parse_table(raw):
-    """Convierte líneas 'Etiqueta | val1 | val2' en:
+def detect_sep(text):
+    """Con qué están separadas las columnas: tabulación (pegado desde Excel),
+    "|", ";" o coma, en ese orden de preferencia. Si no hay ninguno, "|"."""
+    for sep in ("\t", "|", ";", ","):
+        if sep in text:
+            return sep
+    return "|"
+
+
+_NUM_AR = re.compile(r"-?\d{1,3}(\.\d{3})+(,\d+)?")      # 1.172,5
+_NUM_COMMA = re.compile(r"-?\d+,\d+")                    # 959,1
+_NUM_EN = re.compile(r"-?\d{1,3}(,\d{3})+(\.\d+)?")      # 1,172.5
+
+
+def norm_cell(cell):
+    """Números escritos a la argentina ("959,1", "1.172,5") o con miles en
+    inglés ("1,172.5") pasan a la forma canónica "959.1" / "1172.5". El
+    resto del texto queda igual."""
+    t = cell.strip()
+    if _NUM_AR.fullmatch(t):
+        return t.replace(".", "").replace(",", ".")
+    if _NUM_COMMA.fullmatch(t):
+        return t.replace(",", ".")
+    if _NUM_EN.fullmatch(t):
+        return t.replace(",", "")
+    return t
+
+
+def to_num(cell):
+    try:
+        return float(cell)
+    except (TypeError, ValueError):
+        return None
+
+
+def is_header_row(row, chart_type=""):
+    """Una primera fila con texto donde van los números (ej. "Período |
+    Energía | INDEC", como el encabezado de una planilla) es encabezado:
+    no se grafica. En el Sankey la columna del medio puede ser texto, así
+    que ahí solo cuenta la última."""
+    if len(row) < 2:
+        return False
+    cells = [row[-1]] if chart_type == "sankey" else row[1:]
+    return any(c != "" and to_num(c) is None for c in cells)
+
+
+def parse_table(raw, chart_type=""):
+    """Convierte la tabla de texto de un gráfico en:
     - labels: la primera columna de cada fila,
     - series: las demás columnas como números (vacío o no numérico -> None),
-    - rows: las filas crudas, como texto (para los gráficos que llevan texto
-      en más de una columna, ej. Sankey: origen | destino | valor).
-    Misma regla que parseChartTable() en static/charts.js."""
+    - rows: las filas como texto, ya normalizadas (para los gráficos que
+      llevan texto en más de una columna, ej. Sankey: origen | destino | valor).
+    Acepta columnas separadas por "|", coma, punto y coma o tabulación (se
+    detecta solo), celdas entre comillas como en un CSV, decimales con coma
+    y una fila de encabezado (se descarta). Misma regla que parseChartTable()
+    en static/charts.js."""
+    text = raw or ""
+    sep = detect_sep(text)
     rows = []
-    for line in (raw or "").strip().splitlines():
+    for line in text.strip().splitlines():
         line = line.strip()
         if not line:
             continue
-        parts = [p.strip() for p in line.split("|")]
-        rows.append(parts)
+        cells = next(csv.reader([line], delimiter=sep, skipinitialspace=True))
+        cells = [norm_cell(c) for c in cells]
+        while cells and cells[-1] == "":
+            cells.pop()
+        if cells:
+            rows.append(cells)
+    if rows and is_header_row(rows[0], chart_type):
+        rows.pop(0)
     if not rows:
         return [], [], []
     labels = [r[0] for r in rows]
     n_series = max(len(r) for r in rows) - 1
     series = []
     for i in range(n_series):
-        vals = []
-        for r in rows:
-            try:
-                vals.append(float(r[i + 1]) if i + 1 < len(r) and r[i + 1] != "" else None)
-            except ValueError:
-                vals.append(None)
-        series.append(vals)
+        series.append([to_num(r[i + 1]) if i + 1 < len(r) and r[i + 1] != "" else None for r in rows])
     return labels, series, rows
 
 
@@ -883,11 +935,11 @@ def block_data_from_form(block_type, form):
     if block_type == "image":
         return {"url": form.get("url", "").strip(), "caption": form.get("caption", "").strip()}
     if block_type == "chart":
-        labels, series, rows = parse_table(form.get("table", ""))
-        series_names = [s.strip() for s in form.get("series_names", "").split(",") if s.strip()]
         chart_type = form.get("chart_type", "bar_comparison")
         if chart_type not in CHART_TYPES:
             chart_type = "bar_comparison"
+        labels, series, rows = parse_table(form.get("table", ""), chart_type)
+        series_names = [s.strip() for s in form.get("series_names", "").split(",") if s.strip()]
         # Colores: claves de la paleta de static/charts.js (ej. "navy",
         # "pastel_orange") o un color libre "#RRGGBB" elegido en el editor.
         # "color" es el principal; "colors", uno por serie (o por bloque en el

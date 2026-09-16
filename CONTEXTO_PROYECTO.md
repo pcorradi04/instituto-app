@@ -503,6 +503,24 @@ entre turnos. Estado al cierre de esa ronda:
   WhatsApp (paths de simple-icons, CC0) en círculos con hover en el color
   de cada red; "Copiar link" con ícono de cadena y texto en `.lbl`.
   Tests: 120 chequeos (hex válido/inválido, tope de 24, íconos, paleta).
+- **15 sep 2026 (noche)** — pedido: cargar los datos desde un Excel "con
+  una determinada estructura según tipo de gráfico", y que la tabla
+  pegada acepte CSV / el separador que él elija. (1) Parseo en los dos
+  lados (`parse_table(raw, chart_type)` en app.py con el módulo `csv`;
+  `parseChartTable(text, sep, chartType)` y `splitChartTable` en
+  charts.js): separador automático (tab > `|` > `;` > `,`) o forzado,
+  celdas entre comillas, números a la argentina ("959,1", "1.172,5") y
+  miles en inglés ("1,172.5") normalizados a "959.1"/"1172.5" en `rows`,
+  y descarte de la primera fila si es encabezado (`is_header_row`: texto
+  donde van los números; en Sankey solo cuenta la última columna). El
+  editor devuelve el encabezado en `parsed.header` y lo usa como nombres
+  de series en los tipos de `CHART_HEADER_NAMES`. (2) El separador elegido
+  (`d.sep`) no se guarda: al guardar, el editor manda cada tabla ya
+  canónica con "|" (`canon()` en save()), así el servidor guarda lo que
+  se ve. (3) Botones por gráfico: "Subir Excel o CSV" (SheetJS 0.18.5
+  desde cdnjs, carga perezosa; `cellDates` → fechas como AAAA-MM-DD;
+  selector de hoja si hay varias) y "Plantilla Excel" (`spec.header` por
+  tipo + filas del placeholder, `XLSX.writeFile`). Tests: 127 chequeos.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

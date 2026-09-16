@@ -134,6 +134,18 @@ ok(r.status_code == 400 and len(blocks()) == 6 and db_row("SELECT title FROM pos
 ok(save({"title": "x", "blocks": []}, client=anon).status_code == 302, "guardar sin login -> redirige a login")
 ok(c.post("/admin/posts/9999/save", data="{}", content_type="application/json").status_code == 404, "guardar post inexistente -> 404")
 
+# --- tabla de texto: separadores, decimales con coma, encabezado ---------
+pt = appmod.parse_table
+ok(pt("Mayo 2026;959,1;1.172\nJunio 2026;401,3;918")[:2] == (["Mayo 2026", "Junio 2026"], [[959.1, 401.3], [1172.0, 918.0]]),
+   "tabla con punto y coma y números a la argentina (959,1 y 1.172)")
+ok(pt('"Vista, Oil & Gas",569\nYPF,574.1')[2] == [["Vista, Oil & Gas", "569"], ["YPF", "574.1"]], "CSV con coma y celdas entre comillas")
+ok(pt("Período\tEnergía\tINDEC\n2026-01\t1\t2")[:2] == (["2026-01"], [[1.0], [2.0]]), "pegado desde Excel (tabulación): la fila de encabezado se descarta")
+ok(pt("Origen | Destino | valor\nGas | Chile | 340.8", "sankey")[2] == [["Gas", "Chile", "340.8"]],
+   "sankey: encabezado de tres columnas descartado; la columna de texto del medio no confunde")
+ok(pt("2026-05 | 959.1\n2026-07 | | 536.2")[0] == ["2026-05", "2026-07"], "una fila con celdas vacías no es encabezado (fan chart)")
+ok(pt("a | 1,172.5 | 2")[1] == [[1172.5], [2.0]] and pt("a | 1.172,5")[2] == [["a", "1172.5"]], "miles a la inglesa (1,172.5) y a la argentina (1.172,5)")
+ok(pt("") == ([], [], []) and pt("Etiqueta | Valor") == ([], [], []), "tabla vacía o solo encabezado: sin datos")
+
 # --- tipos de gráfico: filas crudas, opciones, tipo desconocido -----------
 BLOCKS2 = [
     {"type": "chart", "data": {"chart_type": "scatter", "table": "Crudo | 959.1 | 1172\nGas | 30.4 | 52",
@@ -225,8 +237,8 @@ ok('style="--accent:#1F4E5F"' in html, "el color de acento del post llega al CSS
 
 # --- el editor devuelve lo guardado en forma editable --------------------
 ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
-ok('"table": "Ene | 1 | 2.5\\nFeb | 3 | \\nMar | x | 4"' in ehtml and '"series_names": "A, B"' in ehtml,
-   "editor: el gráfico vuelve como tabla de texto tal como se escribió, y series como texto")
+ok('"table": "Ene | 1 | 2.5\\nFeb | 3\\nMar | x | 4"' in ehtml and '"series_names": "A, B"' in ehtml,
+   "editor: el gráfico vuelve como tabla de texto (las celdas vacías del final se omiten), y series como texto")
 ok('style="--accent:#1F4E5F"' in ehtml, "editor: arranca con el acento del post")
 
 # --- reordenar y borrar bloques = mandar otra lista -----------------------

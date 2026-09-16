@@ -84,14 +84,60 @@
   const yes = v => /^(s[ií]|yes|1|true|x)$/i.test(String(v || '').trim());
 
   // ---- parseo de la tabla de texto (misma regla que parse_table en app.py) --
-  window.parseChartTable = function (text) {
-    const rows = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => l.split('|').map(p => p.trim()));
-    if (!rows.length) return { labels: [], series: [], rows: [] };
+  // Columnas separadas por "|", coma, punto y coma o tabulación: se detecta
+  // sola (o se fuerza con "sep": '|', ',', ';' o 'tab'). Celdas entre
+  // comillas como en un CSV. Decimales con coma ("959,1") y miles con punto
+  // ("1.172,5") pasan a la forma canónica ("959.1", "1172.5"). Una primera
+  // fila con texto donde van los números es un encabezado: se descarta y se
+  // devuelve en "header" (el editor la usa como nombres de las series).
+  const SEPS = { '|': '|', ',': ',', ';': ';', tab: '\t' };
+  const detectSep = text => ['\t', '|', ';', ','].find(s => text.includes(s)) || '|';
+  const normCell = s => {
+    const t = String(s == null ? '' : s).trim();
+    if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) return t.replace(/\./g, '').replace(',', '.');
+    if (/^-?\d+,\d+$/.test(t)) return t.replace(',', '.');
+    if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) return t.replace(/,/g, '');
+    return t;
+  };
+  // Una línea en celdas: la comilla doble solo es especial al principio de
+  // la celda (como el módulo csv de Python).
+  function splitLine(line, sep) {
+    const cells = []; let cur = '', i = 0, quoted = false;
+    while (i < line.length) {
+      const ch = line[i];
+      if (quoted) {
+        if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else quoted = false; }
+        else cur += ch;
+      } else if (ch === '"' && cur.trim() === '') { quoted = true; cur = ''; }
+      else if (ch === sep) { cells.push(cur); cur = ''; }
+      else cur += ch;
+      i++;
+    }
+    cells.push(cur);
+    return cells;
+  }
+  const isHeaderRow = (r, chartType) => r.length >= 2 && (chartType === 'sankey' ? [r[r.length - 1]] : r.slice(1)).some(c => c !== '' && num(c) === null);
+  // Las filas tal cual (sin descartar el encabezado ni normalizar números):
+  // lo usa el editor para convertir un CSV subido.
+  window.splitChartTable = function (text, sep) {
+    text = String(text || '');
+    const s = SEPS[sep] || detectSep(text);
+    return text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
+      const cells = splitLine(l, s).map(c => c.trim());
+      while (cells.length && cells[cells.length - 1] === '') cells.pop();
+      return cells;
+    }).filter(r => r.length);
+  };
+  window.parseChartTable = function (text, sep, chartType) {
+    const rows = window.splitChartTable(text, sep).map(r => r.map(normCell));
+    let header = null;
+    if (rows.length && isHeaderRow(rows[0], chartType)) header = rows.shift();
+    if (!rows.length) return { labels: [], series: [], rows: [], header };
     const labels = rows.map(r => r[0]);
     const nSeries = Math.max(...rows.map(r => r.length)) - 1;
     const series = [];
     for (let i = 0; i < nSeries; i++) series.push(rows.map(r => num(r[i + 1])));
-    return { labels, series, rows };
+    return { labels, series, rows, header };
   };
 
   // ---- definición de cada tipo ---------------------------------------------
@@ -196,6 +242,23 @@
       placeholder: 'Estrés: medio-alto | 58',
       options: [{ key: 'left_label', label: 'Etiqueta izquierda', placeholder: 'Bajo' }, { key: 'right_label', label: 'Etiqueta derecha', placeholder: 'Alto' }] },
   };
+  // Encabezado de la plantilla Excel de cada tipo (una columna por celda; la
+  // cantidad coincide con el ejemplo "placeholder"). Al subir una planilla,
+  // en los tipos de HEADER_NAMES la fila de encabezado pasa a ser los
+  // nombres de las series (o títulos de ejes); en los demás solo se descarta.
+  const HEADERS = {
+    bar_comparison: ['Etiqueta', 'Serie 1', 'Serie 2'], bar_horizontal: ['Etiqueta', 'Valor'], diverging_bar: ['Etiqueta', 'Valor'],
+    dumbbell: ['Etiqueta', 'Valor A', 'Valor B'], scatter: ['Serie', 'X', 'Y'], line: ['Período', 'Serie 1', 'Serie 2'],
+    bar_line: ['Período', 'Barra', 'Línea'], stacked_area: ['Período', 'Serie 1', 'Serie 2'], bump: ['Período', 'A', 'B', 'C'],
+    heatmap: ['Fila', '2020', '2021', '2022'], waterfall: ['Etiqueta', 'Valor'],
+    fan_chart: ['Período', 'Real', 'Pronóstico', 'Banda 1 bajo', 'Banda 1 alto', 'Banda 2 bajo', 'Banda 2 alto', 'Banda 3 bajo', 'Banda 3 alto'],
+    stacked_bar: ['Etiqueta', 'Parte 1', 'Parte 2', 'Parte 3'], stacked_bar_100: ['Etiqueta', 'Parte 1', 'Parte 2', 'Parte 3'],
+    treemap: ['Nombre', 'Valor'], sankey: ['Destino', 'Valor'], shaded_list: ['Zona', 'Valor'],
+    boxplot: ['Etiqueta', 'Mínimo', 'Cuartil 1', 'Mediana', 'Cuartil 3', 'Máximo'],
+    bullet: ['Nombre', 'Valor', 'Referencia', 'Rango bajo', 'Rango alto', 'Máximo de la escala'], gauge: ['Lectura', 'Valor (0 a 100)'],
+  };
+  Object.entries(HEADERS).forEach(([k, h]) => { if (SPECS[k]) SPECS[k].header = h; });
+  window.CHART_HEADER_NAMES = ['bar_comparison', 'line', 'bar_line', 'stacked_area', 'bump', 'stacked_bar', 'stacked_bar_100', 'heatmap', 'dumbbell', 'bar_horizontal', 'diverging_bar', 'scatter'];
   // Los gráficos de Chart.js aceptan un alto a medida (los de SVG/HTML tienen el suyo).
   const OPT_H = { key: 'height', label: 'Alto del gráfico (px)', placeholder: '360' };
   Object.values(SPECS).forEach(s => { if (s.kind === 'canvas') s.options = (s.options || []).concat([OPT_H]); });

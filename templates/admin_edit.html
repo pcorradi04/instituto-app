@@ -416,11 +416,16 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
     if (!d.options || typeof d.options !== 'object') d.options = {};
     if (!CHART_SPECS[d.chart_type]) d.chart_type = 'bar_comparison';
     const panel = el(`<div class="chart-data">
-      <div class="row"><label>Tipo</label><select class="ctype"></select><button type="button" class="cexample" title="Llena la tabla con datos de muestra para este tipo de gráfico: los editás o los reemplazás por los tuyos">Cargar ejemplo</button></div>
+      <div class="row"><label>Tipo</label><select class="ctype"></select>
+        <button type="button" class="cbtn cexample" title="Llena la tabla con datos de muestra para este tipo de gráfico: los editás o los reemplazás por los tuyos">Cargar ejemplo</button>
+        <button type="button" class="cbtn ctemplate" title="Descarga un Excel con las columnas que lleva este tipo de gráfico y filas de ejemplo: lo completás y lo subís">Plantilla Excel</button>
+        <button type="button" class="cbtn cupload" title="Subí un Excel (.xlsx) o un CSV con los datos: se convierten a la tabla de abajo">Subir Excel o CSV</button>
+        <span class="csheet-wrap" hidden><label>Hoja</label><select class="csheet"></select></span>
+        <input type="file" class="cfile" accept=".xlsx,.xlsm,.xls,.ods,.csv,.tsv,.txt" hidden></div>
       <div class="row ccolors"></div>
       <div class="row cnames-row"><label class="cnames-label"></label><input type="text" class="cnames"></div>
       <div class="row copts"></div>
-      <div class="ccols"></div>
+      <div class="ccols"><span class="ccols-txt"></span><span class="csep"><label>Separador</label><select class="csep-sel" title="Con qué están separadas las columnas. En automático se detecta solo."><option value="">automático</option><option value="|">| (barra)</option><option value=",">, (coma)</option><option value=";">; (punto y coma)</option><option value="tab">tabulación</option></select></span></div>
       <textarea class="ctable"></textarea>
       <div class="hint chint"></div>
     </div>`);
@@ -435,15 +440,92 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
     });
     sel.value = d.chart_type;
     const inNames = panel.querySelector('.cnames'), taTable = panel.querySelector('.ctable'), optsRow = panel.querySelector('.copts');
-    const onData = () => { buildColors(); redraw(); };
-    bind(inNames, d, 'series_names', onData);
+    // Separador de columnas: automático salvo que se elija uno. No se guarda:
+    // al guardar, la tabla viaja ya convertida al formato con "|".
+    const sepSel = panel.querySelector('.csep-sel');
+    if (!['|', ',', ';', 'tab'].includes(d.sep)) d.sep = '';
+    sepSel.value = d.sep;
+    const parsedNow = () => parseChartTable(d.table, d.sep, d.chart_type);
+    // Si la primera fila es un encabezado (texto donde van los números) y
+    // no hay nombres de series cargados, los nombres salen de ahí.
+    function autoNames(force) {
+      const p = parsedNow();
+      if (p.header && CHART_HEADER_NAMES.includes(d.chart_type) && (force || !String(d.series_names || '').trim())) {
+        d.series_names = p.header.slice(1).filter(Boolean).join(', '); inNames.value = d.series_names;
+      }
+    }
+    const onData = () => { autoNames(false); buildColors(); redraw(); };
+    bind(inNames, d, 'series_names', () => { buildColors(); redraw(); });
     bind(taTable, d, 'table', onData);
+    sepSel.addEventListener('change', () => { d.sep = sepSel.value; onData(); });
+
+    // ---- Excel / CSV: subir un archivo, o bajar la plantilla del tipo -----
+    // La librería de Excel (SheetJS) se carga desde el CDN recién cuando
+    // hace falta, como html2canvas para el PNG.
+    const fileInput = panel.querySelector('.cfile'), sheetWrap = panel.querySelector('.csheet-wrap'), sheetSel = panel.querySelector('.csheet');
+    let lastWb = null;
+    function loadXlsx() {
+      if (window.XLSX) return Promise.resolve(window.XLSX);
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = () => resolve(window.XLSX);
+        s.onerror = () => reject(new Error('No se pudo cargar la librería de Excel (¿sin internet?).'));
+        document.head.appendChild(s);
+      });
+    }
+    const pad = n => String(n).padStart(2, '0');
+    const cellText = v => v instanceof Date ? `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`
+      : (typeof v === 'number' ? String(v) : String(v == null ? '' : v).trim());
+    // Filas de un archivo -> tabla con "|" en el textarea. Si la primera
+    // fila es el encabezado, pasa a ser los nombres de las series.
+    function applyRows(rows2d) {
+      const rows = rows2d.map(r => { const c = r.map(cellText); while (c.length && c[c.length - 1] === '') c.pop(); return c; }).filter(r => r.length);
+      if (!rows.length) { alert('El archivo no tiene datos.'); return; }
+      d.table = rows.map(r => r.join(' | ')).join('\n');
+      d.sep = ''; sepSel.value = '';
+      taTable.value = d.table; grow(taTable);
+      dirty(); autoNames(true); buildColors(); redraw();
+    }
+    const sheetRows = name => window.XLSX.utils.sheet_to_json(lastWb.Sheets[name], { header: 1, defval: '' });
+    async function importFile(file) {
+      try {
+        if (/\.(xlsx|xlsm|xls|ods)$/i.test(file.name)) {
+          const XLSX = await loadXlsx();
+          lastWb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+          sheetSel.innerHTML = lastWb.SheetNames.map(n => `<option>${esc(n)}</option>`).join('');
+          sheetWrap.hidden = lastWb.SheetNames.length < 2;
+          applyRows(sheetRows(lastWb.SheetNames[0]));
+        } else {
+          applyRows(splitChartTable(await file.text(), d.sep));
+        }
+      } catch (e) { alert('No se pudo leer el archivo.\n\n' + e.message); }
+    }
+    panel.querySelector('.cupload').addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) importFile(fileInput.files[0]); fileInput.value = ''; });
+    sheetSel.addEventListener('change', () => { if (lastWb) applyRows(sheetRows(sheetSel.value)); });
+    panel._importFile = importFile;
+    // Plantilla: un .xlsx con el encabezado del tipo elegido y sus filas de ejemplo.
+    async function downloadTemplate() {
+      try {
+        const XLSX = await loadXlsx();
+        const spec = CHART_SPECS[d.chart_type];
+        const header = spec.header || spec.columns.split('|').map(s => s.trim()).filter(s => s && !s.includes('...'));
+        const rows = spec.placeholder.split('\n').map(l => l.split('|').map(c => { const t = c.trim(); return t !== '' && !isNaN(Number(t)) ? Number(t) : t; }));
+        const ws = XLSX.utils.aoa_to_sheet([header].concat(rows));
+        ws['!cols'] = header.map(h => ({ wch: Math.max(14, h.length + 2) }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Datos');
+        XLSX.writeFile(wb, 'plantilla-' + d.chart_type + '.xlsx');
+      } catch (e) { alert('No se pudo armar la plantilla.\n\n' + e.message); }
+    }
+    panel.querySelector('.ctemplate').addEventListener('click', downloadTemplate);
     // Un color por serie (o por bloque / destino, o uno solo, según el tipo:
     // chartColorSlots lo decide con los datos cargados). Cada uno es un
     // botón con el círculo del color; al tocarlo se abre la paleta. Lo mismo
     // pasa al hacer clic sobre la serie en el gráfico (ver drawChartIn).
     const DEFAULT_COLORS = ['orange', 'maroon', 'navy', 'blue', 'rust', 'purple', 'olive', 'gray', 'teal', 'gold', 'green', 'slate'];
-    const slotNames = () => chartColorSlots(d.chart_type, parseChartTable(d.table), String(d.series_names || '').split(',').map(s => s.trim()).filter(Boolean));
+    const slotNames = () => chartColorSlots(d.chart_type, parsedNow(), String(d.series_names || '').split(',').map(s => s.trim()).filter(Boolean));
     function buildColors() {
       const spec = CHART_SPECS[d.chart_type];
       const row = panel.querySelector('.ccolors');
@@ -481,6 +563,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
       const spec = CHART_SPECS[d.chart_type];
       if (String(d.table || '').trim() && !confirm('¿Reemplazar los datos cargados por los de ejemplo?')) return;
       d.table = spec.placeholder; taTable.value = d.table;
+      d.sep = ''; sepSel.value = '';
       if (spec.names) { d.series_names = spec.names_placeholder || ''; inNames.value = d.series_names; }
       if (d.chart_type === 'sankey') { d.options.origin = 'Gas exportado 2025'; buildPanel(); }
       dirty(); buildColors(); redraw(); grow(taTable);
@@ -502,9 +585,9 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
         optsRow.append(lab, inp);
       });
       optsRow.hidden = !(spec.options && spec.options.length);
-      panel.querySelector('.ccols').textContent = 'Columnas: ' + spec.columns;
+      panel.querySelector('.ccols-txt').textContent = 'Columnas: ' + spec.columns;
       taTable.placeholder = spec.placeholder;
-      panel.querySelector('.chint').textContent = spec.hint + ' Una fila por línea, columnas separadas con "|"; si falta un dato, dejá el valor vacío.';
+      panel.querySelector('.chint').textContent = spec.hint + ' Una fila por línea; columnas separadas con "|", coma, punto y coma o tabulación (se detecta solo). Podés pegar directo desde Excel o subir el archivo. Si la primera fila trae los nombres de las columnas, se toma como encabezado. Si falta un dato, dejá la celda vacía.';
     }
     sel.addEventListener('change', () => { d.chart_type = sel.value; dirty(); buildPanel(); buildColors(); redraw(); });
     buildPanel();
@@ -522,7 +605,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
       empty.textContent = 'No se pudo cargar la librería de gráficos (¿sin internet?). Los datos se guardan igual y el gráfico se ve en el post.';
       return;
     }
-    const parsed = parseChartTable(d.table);
+    const parsed = parseChartTable(d.table, d.sep, d.chart_type);
     const has = parsed.rows.length > 0;
     wrap.hidden = !has; empty.hidden = has;
     if (!has) return;
@@ -660,8 +743,13 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
     if (saving) return false;
     saving = true;
     saveState.textContent = 'Guardando…'; saveState.className = 'save-state';
+    // Las tablas de datos viajan ya convertidas al formato con "|" (mismas
+    // filas que muestra el editor: sin encabezado, números normalizados),
+    // así el servidor guarda exactamente lo que se ve.
+    const canon = cd => { const p = parseChartTable(cd.table, cd.sep, cd.chart_type); return Object.assign({}, cd, { table: p.rows.map(r => r.join(' | ')).join('\n') }); };
     const payload = { title: state.title, eyebrow: state.eyebrow, dek: state.dek, author: state.author, accent: state.accent,
-                      blocks: state.blocks.map(b => ({ type: b.type, data: b.data })) };
+                      blocks: state.blocks.map(b => ({ type: b.type, data: b.type === 'chart' ? canon(b.data)
+                        : (b.type === 'figure' ? Object.assign({}, b.data, { panels: (b.data.panels || []).map(canon) }) : b.data) })) };
     try {
       const r = await fetch(SAVE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (r.redirected) throw new Error('Tu sesión expiró. Abrí el panel en otra pestaña, volvé a entrar, y guardá de nuevo (no cierres esta).');

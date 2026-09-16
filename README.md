@@ -95,6 +95,18 @@ python test_app.py
      ```
      Cada tipo dice qué va en cada columna: el editor lo muestra en una
      línea "Columnas: ..." arriba de la tabla, con un ejemplo gris adentro.
+     Las columnas pueden ir separadas con `|`, coma, punto y coma o
+     tabulación: se detecta solo (o lo elegís en "Separador"), así que
+     podés copiar celdas de Excel y pegarlas tal cual, o pegar un CSV. Los
+     decimales pueden ir con coma (`959,1`) o con punto, y los miles con
+     punto (`1.172,5`). Si la primera fila trae los nombres de las
+     columnas, se toma como encabezado: no se grafica y, en los gráficos
+     con leyenda, esos nombres pasan a ser los de las series. También
+     podés **subir el archivo** directamente ("Subir Excel o CSV": .xlsx,
+     .xls o .csv; si el Excel tiene varias hojas, elegís cuál), o bajar
+     una **plantilla Excel** del tipo elegido, con las columnas que lleva
+     y filas de ejemplo, para completarla y subirla. Al guardar, la tabla
+     queda siempre en el formato con `|`.
      Los tipos son: barras agrupadas, barras horizontales, barras
      divergentes, mancuernas, dispersión, líneas, barras + línea (eje
      derecho), áreas apiladas, ranking en el tiempo (bump), mapa de calor,
