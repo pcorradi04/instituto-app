@@ -570,6 +570,12 @@ entre turnos. Estado al cierre de esa ronda:
   texto legal transcripto de la captura de Pedro; el logo azul del pie
   anterior se sacó (chocaba con la banda gris; el azul queda en acentos).
   Script de logos: scratchpad `make_brand_logos.py` (Pillow del venv-audio).
+  Después Pedro cargó "Hidrocarburos; vaca muerta; comercio exterior" como
+  etiqueta y preguntó qué era "Publicado en..." y cómo se publica "adentro
+  de un subgrupo": no hay categorías jerárquicas, la etiqueta es texto
+  libre; se agregó el filtro Jinja `tags` (separa por ";") y en portada y
+  post cada etiqueta es un link a `/?q=<etiqueta>` (la búsqueda ya hacía
+  LIKE sobre eyebrow). Se le explicó que es un rótulo, no una carpeta.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

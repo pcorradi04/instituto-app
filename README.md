@@ -199,6 +199,13 @@ debajo a todo el ancho (los párrafos también usan todo el ancho, igual que
 las tarjetas de gráficos). Cada gráfico lleva el logo gris del Instituto
 arriba a la derecha, que también sale en el PNG.
 
+**Etiquetas.** El campo arriba del título es la etiqueta o categoría del
+post (libre: la escribís vos). Podés poner varias separadas por punto y
+coma ("Hidrocarburos; Vaca Muerta"): en la portada salen como "Publicado
+en Hidrocarburos, Vaca Muerta", cada una es un link y al tocarla se
+listan los posts con esa etiqueta. No hay carpetas ni subgrupos: es un
+rótulo para encontrar posts parecidos.
+
 **Banner, portada y pie.** El banner es blanco con el logo gris del
 Instituto, la palabra "Blog", un buscador y los íconos de las redes
 sociales: aparecen solo las que tengan su dirección en el `.env`

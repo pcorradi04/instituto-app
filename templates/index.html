@@ -20,7 +20,8 @@
   <div class="post-list">
     {% for post in posts %}
     <article class="post-card" style="--accent:{{ accents_hex.get(post['accent'], '#0000CC') }}">
-      {% if post['eyebrow'] %}<div class="card-cat">Publicado en <a href="{{ url_for('index', q=post['eyebrow']) }}">{{ post['eyebrow'] }}</a></div>{% endif %}
+      {% set tags = post['eyebrow'] | tags %}
+      {% if tags %}<div class="card-cat">Publicado en {% for t in tags %}<a href="{{ url_for('index', q=t) }}">{{ t }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
       <h2>{% if post['post_number'] %}<span class="post-num">{{ post['post_number'] }}</span>{% endif %}<a href="{{ url_for('show_post', slug=post['slug']) }}">{{ post['title'] }}</a></h2>
       <div class="card-meta">
         <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ post['author'] or 'Instituto de Energía' }}</span>

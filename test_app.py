@@ -287,7 +287,7 @@ ok(r.status_code == 302 and r.headers["Location"].endswith(f"/admin/posts/{pid}/
 r = anon.get("/post/" + slug)
 ok(r.status_code == 200 and "BORRADOR" not in text(r), "visible públicamente")
 ok(db_row("SELECT post_number FROM posts WHERE id=?", pid)["post_number"] == 1
-   and '<span class="post-num">1</span>' in text(r) and '<div class="eyebrow">Prueba</div>' in text(r)
+   and '<span class="post-num">1</span>' in text(r) and '<div class="eyebrow"><a href="/?q=Prueba">Prueba</a></div>' in text(r)
    and text(r).index('class="post-num"') < text(r).index("<h1>"),
    "primera publicación: recibe el N.º 1, en caja a la izquierda del título, con la etiqueta arriba")
 home = text(anon.get("/"))
@@ -307,6 +307,12 @@ home = text(anon.get("/"))
 ok('<p class="card-excerpt">Texto con negrita y itálica. Segundo párrafo &lt;script&gt;alert(1)&lt;/script&gt;</p>' in home,
    "portada sin copete: el resumen es el primer párrafo, sin marcas y sin HTML")
 ok(appmod.excerpt_for(db, {"dek": "", "id": pid}, limit=30) == "Texto con negrita y itálica…", "resumen recortado en palabra entera")
+save({**GENERAL, "eyebrow": "Hidrocarburos; vaca muerta ;; Comercio Exterior", "blocks": BLOCKS})
+home = text(anon.get("/"))
+ok('Publicado en <a href="/?q=Hidrocarburos">Hidrocarburos</a>, <a href="/?q=vaca+muerta">vaca muerta</a>, <a href="/?q=Comercio+Exterior">Comercio Exterior</a>' in home
+   and '<a href="/?q=vaca+muerta">vaca muerta</a> · ' in text(anon.get("/post/" + slug))
+   and "Título editado" in text(anon.get("/?q=vaca muerta")) and "Título editado" not in text(anon.get("/?q=otra cosa")),
+   "varias etiquetas separadas por punto y coma: cada una es su propio link y filtra sola")
 save({**GENERAL, "blocks": BLOCKS})
 save({**GENERAL, "author": "", "blocks": BLOCKS})
 ok('class="byline">Publicado el ' in text(anon.get("/post/" + slug)), "sin autor: 'Publicado el fecha', sin repetir el nombre del Instituto")

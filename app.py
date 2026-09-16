@@ -344,6 +344,13 @@ MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
          "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
 
+@app.template_filter("tags")
+def split_tags(eyebrow):
+    """La etiqueta del post puede traer varias separadas por punto y coma
+    ("Hidrocarburos; Vaca Muerta"): cada una se muestra y se busca aparte."""
+    return [t.strip() for t in (eyebrow or "").split(";") if t.strip()]
+
+
 def fecha_es(iso, hora=False):
     """'2026-09-10T22:15:00+00:00' -> '10 de septiembre de 2026' (hora de
     Argentina, UTC-3 fijo: el país no cambia de horario)."""
