@@ -49,7 +49,7 @@ a{color:var(--blue);}
 .hero{position:relative; padding:56px 4vw 44px calc(4vw + 26px); border-left:26px solid var(--accent, var(--blue)); background:var(--hero-bg);}
 .hero .eyebrow{text-transform:uppercase; letter-spacing:0.14em; font-size:12px; color:var(--accent, var(--blue)); font-weight:700; margin-bottom:16px;}
 .hero h1{font-size:clamp(28px,3.6vw,44px); line-height:1.16; margin:0 0 18px; max-width:42ch;}
-.hero p.lede{max-width:160ch; color:var(--ink-soft); font-size:16.5px; margin:0;}
+.hero p.lede{color:var(--ink-soft); font-size:16.5px; margin:0;}
 
 /* ---------- layout ---------- */
 main{max-width:1240px; margin:0 auto; padding:0 4vw;}
@@ -87,7 +87,7 @@ h2{font-size:clamp(22px,2.4vw,29px); margin:0 0 14px; font-weight:700;}
 .chart-logo{width:104px; height:auto; flex:0 0 auto; opacity:.9;}   /* apenas más chico */
 .chart-card h3{font-size:19px; line-height:1.25; margin:0 0 3px; color:var(--ink); font-weight:700;}   /* título más grande */
 .chart-card .sub{font-size:12.5px; color:var(--ink-soft); font-style:italic;}
-.chart-note{font-size:11px; color:var(--ink-soft); margin-top:10px; line-height:1.45; max-width:110ch;}
+.chart-note{font-size:11px; color:var(--ink-soft); margin-top:10px; line-height:1.45;}
 /* Figura: varios gráficos lado a lado, con título, nota y fuente en común. */
 .figure-grid{display:grid; gap:24px; grid-template-columns:1fr;}
 .figure-grid.cols-2{grid-template-columns:1fr 1fr;}

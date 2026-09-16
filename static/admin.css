@@ -76,7 +76,10 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .ed{font:inherit; color:inherit; letter-spacing:inherit; text-transform:inherit; font-variant:inherit; line-height:inherit; background:transparent; border:0; border-bottom:1px dashed rgba(0,0,0,.18); outline:0; padding:0; margin:0; width:100%; display:block; resize:none; overflow:hidden; border-radius:0;}
 .ed:focus{border-bottom-color:var(--accent, var(--blue)); background:rgba(0,0,204,.035);}
 .ed::placeholder{color:#B9B3A7; opacity:1; font-style:italic; font-weight:400; text-transform:none; letter-spacing:normal; font-variant:normal;}
-.ed.inline{display:inline-block; width:70%; vertical-align:baseline;}
+/* Campos en línea con un rótulo adelante ("Por …", "Fuente: …"): el campo
+   ocupa todo el ancho que queda. Todos los textos van a todo el ancho. */
+.editor .byline, .editor .chart-source{display:flex; align-items:baseline; gap:6px;}
+.ed.inline{display:inline-block; flex:1; width:auto; min-width:0; vertical-align:baseline;}
 
 /* bloques */
 .blk{position:relative; padding:8px 10px; margin:0 -10px; border:1px dashed transparent;}
