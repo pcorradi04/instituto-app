@@ -243,6 +243,24 @@ ok('"chart_type": "bar_race"' in html and '"top_n": "5"' in html and '"chart_typ
 ok("R.bar_race" in js and "R.line_race" in js and "function raceController" in js and "IntersectionObserver" in js,
    "charts.js: carrera de barras y líneas que se dibujan, con play y arranque al entrar en pantalla")
 ok("<iframe" not in text(anon.get("/post/" + slug)).split('id="comentarios"')[0].replace('<iframe class="embed-frame"', '', 4), "sin más iframes que los cuatro embeds")
+
+# --- destacado adentro del gráfico, duplicar, proyección automática --------
+r = save({**GENERAL, "blocks": [
+    {"type": "chart", "data": {"chart_type": "forecast", "title": "Proy", "box": "Lectura: **clave** del gráfico", "table": "2025-01 | 1\n2025-02 | 2\n2025-03 | 3", "options": {"horizon": "6", "bands": "80, 95"}}},
+    {"type": "figure", "data": {"title": "Fig", "box": "Dos paneles, **una** idea", "panels": [{"chart_type": "line", "table": "a | 1"}, {"chart_type": "line", "table": "b | 2"}]}},
+]})
+bl = blocks()
+ok(r.status_code == 200 and bl[0]["data"]["chart_type"] == "forecast" and bl[0]["data"]["box"] == "Lectura: **clave** del gráfico"
+   and bl[1]["data"]["box"] == "Dos paneles, **una** idea",
+   "gráfico y figura guardan el destacado (box); el tipo 'proyección automática' existe")
+html = text(c.get("/post/" + slug))
+ok(html.count('class="chart-box"') == 2 and "<b>clave</b>" in html and "<b>una</b>" in html and '"horizon": "6"' in html,
+   "post: el destacado va dentro de la tarjeta, con negritas; la proyección llega a charts.js con sus opciones")
+ehtml = text(c.get(f"/admin/posts/{pid}/edit"))
+ok('placeholder="Destacado dentro del gráfico' in ehtml and '"box": "Lectura: **clave** del gr' in ehtml and "⧉ duplicar" in ehtml and "panel-dup" in ehtml,
+   "editor: campo de destacado en gráficos y figuras, botón duplicar en bloques y en paneles de figura")
+ok("R.forecast" in js and "function forecastSeries" in js and "function nextPeriods" in js and "forecast: ['Período', 'Valor']" in js,
+   "charts.js: proyección automática (tendencia + bandas) con períodos futuros generados solos")
 save({**GENERAL, "blocks": BLOCKS2})
 html = text(c.get("/post/" + slug))   # los chequeos que siguen miran el post con BLOCKS2
 ok('<a href="https://indec.gob.ar/x?a=1&amp;b=2" target="_blank" rel="noopener">el informe</a>' in html

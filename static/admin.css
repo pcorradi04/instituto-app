@@ -143,6 +143,10 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .cpop-custom input[type=color]{width:38px; height:26px; padding:0; border:1px solid var(--line); background:#fff; cursor:pointer;}
 .cpop-custom .cpop-hex{width:84px; font-family:inherit; font-size:11px; padding:4px 6px; border:1px solid var(--line); background:#fdfdfb; text-transform:uppercase;}
 
+/* destacado dentro del gráfico: vacío se ve apenas; con texto, como en el post */
+.editor .chart-box textarea.ed{min-height:1.6em;}
+.editor .chart-box:has(.ed:placeholder-shown){background:transparent; border-left-color:var(--line);}
+
 /* embed */
 .chart-data .ehtml{font-family:'Courier New',monospace; font-size:11.5px; min-height:120px;}
 .embed-card.over{outline:2px dashed var(--accent, var(--blue)); outline-offset:-2px;}

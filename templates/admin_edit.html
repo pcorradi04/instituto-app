@@ -38,7 +38,7 @@
   </div>
   <ol class="guide-steps" id="guideSteps" hidden>
     <li><b>Encabezado.</b> Esto es el post tal como lo van a ver los lectores: tocá el texto gris y escribí encima. Etiqueta (la categoría, ej. "Comercio Exterior"), título, quién firma y el copete.</li>
-    <li><b>Bloques.</b> Secciones, párrafos, destacados, gráficos e imágenes se agregan con los botones del final. Para meter uno en el medio, pasá el mouse entre dos bloques: aparece "insertar acá". Con ↑ y ↓ los reordenás; con ✕ los borrás.</li>
+    <li><b>Bloques.</b> Secciones, párrafos, destacados, gráficos e imágenes se agregan con los botones del final. Para meter uno en el medio, pasá el mouse entre dos bloques: aparece "insertar acá". Con ↑ y ↓ los reordenás; con ⧉ duplicás uno (queda la copia debajo, para cambiarle pocas cosas); con ✕ los borrás.</li>
     <li><b>Gráficos.</b> Elegí el tipo, pegá la tabla (una fila por línea, columnas separadas con "|") y se dibuja solo. Si no sabés qué formato lleva, tocá <i>Cargar ejemplo</i> y editá sobre eso. Para cambiar el color de una serie, hacé clic sobre ella en el gráfico (o en su nombre en la leyenda). Para un gráfico con play, tipo video, elegí <i>Carrera de barras</i> o <i>Líneas que se dibujan</i>; para pegar código HTML (por ejemplo, un gráfico animado hecho con IA) o una dirección de Our World in Data o YouTube, usá el bloque <i>Embed / HTML</i>.</li>
     <li><b>Guardar.</b> Ctrl+S o el botón Guardar, las veces que quieras. Mientras no publiques, nadie lo ve; con "Ver post ↗" lo mirás como lector.</li>
     <li><b>Publicar.</b> El post recibe su número, aparece en la portada y su dirección queda fija. Después podés seguir editándolo: los cambios salen al guardar.</li>
@@ -201,15 +201,25 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
     if (extra) t.appendChild(extra);
     const up = el('<button type="button" title="Mover este bloque un lugar hacia arriba">↑ subir</button>');
     const down = el('<button type="button" title="Mover este bloque un lugar hacia abajo">↓ bajar</button>');
+    const dup = el('<button type="button" title="Hacer una copia de este bloque justo debajo, para cambiarle pocas cosas">⧉ duplicar</button>');
     const del = el('<button type="button" class="del" title="Borrar bloque">✕ borrar</button>');
     up.addEventListener('click', () => move(b, -1));
     down.addEventListener('click', () => move(b, +1));
+    dup.addEventListener('click', () => duplicate(b));
     del.addEventListener('click', () => {
       if (!confirm('¿Borrar este bloque?')) return;
       state.blocks.splice(idx(b), 1); dirty(); renderAll();
     });
-    t.append(up, down, del);
+    t.append(up, down, dup, del);
     return t;
+  }
+  // Copia completa del bloque (datos incluidos), insertada justo debajo.
+  function duplicate(b) {
+    const copy = { uid: uid(), type: b.type, data: JSON.parse(JSON.stringify(b.data)) };
+    state.blocks.splice(idx(b) + 1, 0, copy);
+    dirty(); renderAll();
+    const n = container.querySelector(`[data-uid="${copy.uid}"]`);
+    if (n) { n.scrollIntoView({ block: 'center', behavior: 'smooth' }); const f = n.querySelector('.ed'); if (f) f.focus(); }
   }
   // Botones B / I: envuelven el texto seleccionado con ** o *.
   function fmtButtons(ta) {
@@ -282,12 +292,14 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
         </div>
         <div class="chart-wrap"></div>
         <div class="chart-empty" hidden>Todavía no hay datos. Pegá la tabla acá abajo y el gráfico aparece en este lugar.</div>
+        <div class="chart-box"><textarea class="ed" rows="1" placeholder="Destacado dentro del gráfico (opcional): la lectura clave en una o dos líneas. Admite **negrita**."></textarea></div>
         <div class="chart-note"><input class="ed" placeholder="Nota al pie (opcional): aclaraciones metodológicas, definiciones, cambios de serie."></div>
         <div class="chart-source">Fuente: <input class="ed inline" placeholder="Secretaría de Energía; INDEC"></div>
       </div></div>`);
       n.prepend(tools(b));
       bind(n.querySelector('.chart-head h3 input'), d, 'title');
       bind(n.querySelector('.chart-head .sub input'), d, 'subtitle');
+      bind(n.querySelector('.chart-box textarea'), d, 'box');
       bind(n.querySelector('.chart-note input'), d, 'note');
       bind(n.querySelector('.chart-source input'), d, 'source');
       const wrap = n.querySelector('.chart-wrap'), empty = n.querySelector('.chart-empty');
@@ -316,6 +328,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
         </div>
         <div class="figure-grid"></div>
         <div class="figure-add"><button type="button" class="btn small secondary">+ Agregar un gráfico al lado</button> Hasta 3, uno al lado del otro. En pantallas chicas se apilan.</div>
+        <div class="chart-box"><textarea class="ed" rows="1" placeholder="Destacado dentro de la figura (opcional): la lectura clave en una o dos líneas. Admite **negrita**."></textarea></div>
         <div class="chart-note"><input class="ed" placeholder="Nota al pie (opcional): aclaraciones metodológicas, definiciones, cambios de serie."></div>
         <div class="chart-source">Fuente: <input class="ed inline" placeholder="Secretaría de Energía; INDEC"></div>
       </div></div>`);
@@ -323,6 +336,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
       const card = n.querySelector('.chart-card');
       bind(n.querySelector('.chart-head h3 input'), d, 'title');
       bind(n.querySelector('.chart-head .sub input'), d, 'subtitle');
+      bind(card.querySelector(':scope > .chart-box textarea'), d, 'box');
       bind(card.querySelector(':scope > .chart-note input'), d, 'note');
       bind(card.querySelector(':scope > .chart-source input'), d, 'source');
       const grid = n.querySelector('.figure-grid'), addBtn = n.querySelector('.figure-add button');
@@ -333,7 +347,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
         grid.className = 'figure-grid cols-' + d.panels.length;
         d.panels.forEach((pd, i) => {
           const p = el(`<div class="figure-panel">
-            <div class="panel-head"><div class="panel-title"><input class="ed" placeholder="Título de este gráfico (opcional)"></div>${d.panels.length > 1 ? '<button type="button" class="linklike danger panel-del">quitar</button>' : ''}</div>
+            <div class="panel-head"><div class="panel-title"><input class="ed" placeholder="Título de este gráfico (opcional)"></div>${d.panels.length < 3 ? '<button type="button" class="linklike panel-dup" title="Copiar este gráfico como un panel más, a la derecha">duplicar</button>' : ''}${d.panels.length > 1 ? '<button type="button" class="linklike danger panel-del">quitar</button>' : ''}</div>
             <div class="chart-wrap"></div>
             <div class="chart-empty" hidden>Todavía no hay datos: pegá la tabla abajo.</div>
           </div>`);
@@ -344,8 +358,9 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
           dp = chartDataPanel(pd, debounced(draw));
           p.appendChild(dp);
           emptyWithExample(empty, dp);
-          const del = p.querySelector('.panel-del');
+          const del = p.querySelector('.panel-del'), dup = p.querySelector('.panel-dup');
           if (del) del.addEventListener('click', () => { if (!confirm('¿Quitar este gráfico de la figura?')) return; d.panels.splice(i, 1); dirty(); renderPanels(); });
+          if (dup) dup.addEventListener('click', () => { d.panels.splice(i + 1, 0, JSON.parse(JSON.stringify(pd))); dirty(); renderPanels(); });
           grid.appendChild(p);
           redraws.push(draw);
         });

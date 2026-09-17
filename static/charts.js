@@ -207,6 +207,14 @@
       hint: 'Filas históricas: solo "real". Filas futuras: pronóstico y hasta tres bandas anidadas, de la más angosta a la más ancha. El pronóstico se une solo al último dato real.',
       placeholder: '2026-05 | 959.1\n2026-06 | 401.3\n2026-07 | | 536.2 | 481.3 | 591.1 | 422.5 | 649.8 | 330.4 | 741.9\n2026-08 | | 470 | 404.9 | 535.1 | 335.3 | 604.7 | 226.1 | 713.9',
       options: [OPT_Y] },
+    forecast: { label: 'Proyección automática (tendencia + bandas)', group: 'Evolución en el tiempo', kind: 'canvas',
+      columns: 'Período | valor   (solo la serie histórica; los períodos futuros se generan solos)', names: null,
+      hint: 'Cargás la serie histórica y la app proyecta los períodos siguientes: tendencia lineal (más estacionalidad, si la indicás) y bandas de confianza calculadas de los residuos. Es una proyección estadística simple para ilustrar, no reemplaza un modelo propio: para publicar los números de tu modelo usá "Pronóstico con bandas".',
+      placeholder: '2025-01 | 30.1\n2025-02 | 35.4\n2025-03 | 39.8\n2025-04 | 33.2\n2025-05 | 30.5\n2025-06 | 28.1\n2025-07 | 30.9\n2025-08 | 32\n2025-09 | 16.2\n2025-10 | 27.4\n2025-11 | 28.8\n2025-12 | 22.1\n2026-01 | 23.9\n2026-02 | 25\n2026-03 | 34.1\n2026-04 | 19.6\n2026-05 | 30.6\n2026-06 | 20.3',
+      options: [{ key: 'horizon', label: 'Períodos a proyectar', placeholder: '6' },
+                { key: 'season', label: 'Estacionalidad (12 mensual, 4 trimestral; necesita 2 ciclos completos de datos)', placeholder: '' },
+                { key: 'bands', label: 'Bandas de confianza (%)', placeholder: '80, 95' },
+                { key: 'log', label: 'Crecimiento porcentual (escala log; si/no)', placeholder: 'no' }, OPT_Y] },
     bar_race: { label: 'Carrera de barras (video en el tiempo)', group: 'Evolución en el tiempo', kind: 'html',
       columns: 'Período | serie 1 | serie 2 | ...   (una fila por año o mes; una columna por país, empresa, fuente...)',
       names: 'Nombres de las barras (leyenda)', names_placeholder: 'Argentina, Brasil, Colombia, México, Venezuela',
@@ -291,6 +299,7 @@
     boxplot: ['Etiqueta', 'Mínimo', 'Cuartil 1', 'Mediana', 'Cuartil 3', 'Máximo'],
     bullet: ['Nombre', 'Valor', 'Referencia', 'Rango bajo', 'Rango alto', 'Máximo de la escala'], gauge: ['Lectura', 'Valor (0 a 100)'],
     bar_race: ['Período', 'Argentina', 'Brasil', 'Colombia', 'México', 'Venezuela'], line_race: ['Período', 'Argentina', 'Brasil', 'Colombia', 'México', 'Venezuela'],
+    forecast: ['Período', 'Valor'],
   };
   Object.entries(HEADERS).forEach(([k, h]) => { if (SPECS[k]) SPECS[k].header = h; });
   window.CHART_HEADER_NAMES = ['bar_comparison', 'line', 'bar_line', 'stacked_area', 'bump', 'stacked_bar', 'stacked_bar_100', 'heatmap', 'dumbbell', 'bar_horizontal', 'diverging_bar', 'scatter', 'bar_race', 'line_race'];
@@ -495,8 +504,118 @@
     ds.push({ label: seriesName(def, 0, 'Real'), data: real, borderColor: P[0], borderWidth: 2.2, pointRadius: 0, _si: 0 });
     const opt = baseOptions(o);
     opt.plugins.legend.labels.filter = item => !String(item.text).startsWith('_');
+    // La proyección automática deja escrito el método al pie (sale también en el PNG).
+    if (def._method) opt.plugins.subtitle = { display: true, position: 'bottom', text: def._method, color: SOFT, font: { size: 10, style: 'italic', weight: 'normal' }, padding: { top: 6 } };
     opt.scales = { x: noGrid({ ticks: { maxTicksLimit: 10 } }), y: axis(def.options.y_title) };
     return new Chart(canvasIn(c), { type: 'line', options: opt, data: { labels: def.labels, datasets: ds } });
+  };
+
+  // ---- proyección automática ----------------------------------------------
+  // Tendencia lineal por mínimos cuadrados sobre la serie histórica, con
+  // estacionalidad aditiva opcional (índices por fase, de los residuos) y
+  // escala logarítmica opcional (crecimiento porcentual). Las bandas son
+  // intervalos de predicción de la regresión: sigma de los residuos,
+  // ensanchándose con la distancia al centro de la muestra. Es la versión
+  // más simple y defendible; el gráfico deja el método escrito al pie.
+  const Z = { 50: 0.674, 68: 1.0, 80: 1.282, 90: 1.645, 95: 1.96, 99: 2.576 };
+  function forecastSeries(y, options) {
+    const pts = []; y.forEach((v, i) => { if (v != null) pts.push([i, v]); });
+    const m = pts.length;
+    if (m < 3) return null;
+    const H = Math.max(1, Math.min(parseInt(options.horizon, 10) || 6, 60));
+    let s = parseInt(options.season, 10) || 0; if (s < 2 || m < 2 * s) s = 0;
+    const useLog = yes(options.log) && pts.every(p => p[1] > 0);
+    const tr = v => (useLog ? Math.log(v) : v), inv = v => (useLog ? Math.exp(v) : v);
+    const xs = pts.map(p => p[0]), ys = pts.map(p => tr(p[1]));
+    const mean = a => a.reduce((t, v) => t + v, 0) / a.length;
+    const ols = (X, Y) => { const mx = mean(X), my = mean(Y); let sxx = 0, sxy = 0; X.forEach((x, k) => { sxx += (x - mx) ** 2; sxy += (x - mx) * (Y[k] - my); }); const b = sxx ? sxy / sxx : 0; return { a: my - b * mx, b, mx, sxx }; };
+    let fit = ols(xs, ys), S = null;
+    if (s) {
+      const res = ys.map((v, k) => v - (fit.a + fit.b * xs[k]));
+      S = new Array(s).fill(0); const cnt = new Array(s).fill(0);
+      res.forEach((r, k) => { S[xs[k] % s] += r; cnt[xs[k] % s]++; });
+      S = S.map((v, k) => (cnt[k] ? v / cnt[k] : 0)); const mS = mean(S); S = S.map(v => v - mS);
+      fit = ols(xs, ys.map((v, k) => v - S[xs[k] % s]));
+    }
+    const pred = x => fit.a + fit.b * x + (S ? S[x % s] : 0);
+    const e = ys.map((v, k) => v - pred(xs[k]));
+    const dof = Math.max(1, m - 2 - (s ? s - 1 : 0));
+    const sigma = Math.sqrt(e.reduce((t, v) => t + v * v, 0) / dof);
+    let levels = String(options.bands || '').split(/[,;\s]+/).map(v => parseInt(v, 10)).filter(v => Z[v]);
+    levels = [...new Set(levels)].sort((a, b) => a - b).slice(0, 3);
+    if (!levels.length) levels = [80, 95];
+    const n0 = y.length, nonneg = !useLog && pts.every(p => p[1] >= 0);
+    const out = { H, m, s, useLog, levels, pred: [], bands: levels.map(() => ({ lo: [], hi: [] })) };
+    for (let h = 1; h <= H; h++) {
+      const x = n0 - 1 + h, p = pred(x);
+      const se = sigma * Math.sqrt(1 + 1 / m + ((x - fit.mx) ** 2) / (fit.sxx || 1));
+      out.pred.push(inv(p));
+      levels.forEach((L, k) => { let lo = inv(p - Z[L] * se); const hi = inv(p + Z[L] * se); if (nonneg) lo = Math.max(0, lo); out.bands[k].lo.push(lo); out.bands[k].hi.push(hi); });
+    }
+    return out;
+  }
+  // Etiquetas de los períodos futuros, siguiendo el formato de las cargadas:
+  // 2024 → 2025; 2026-07 → 2026-08; 07/2026; 2026-07-31 (paso = días entre
+  // las dos últimas; ~30 = mes); 2026-Q1 / T1; Ene-26 / ene 2026. Si no se
+  // reconoce, "+1", "+2", ...
+  const MESES_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  function nextPeriods(labels, h) {
+    const last = String(labels[labels.length - 1] || '').trim(), prev = String(labels[labels.length - 2] || '').trim();
+    const pad = n => String(n).padStart(2, '0'), out = [];
+    let m;
+    if ((m = last.match(/^\d{4}$/))) {
+      const step = (/^\d{4}$/.test(prev) && +last - +prev > 0) ? +last - +prev : 1;
+      for (let i = 1; i <= h; i++) out.push(String(+last + step * i));
+    } else if ((m = last.match(/^(\d{4})([-\/.])(\d{1,2})$/))) {
+      let yr = +m[1], mo = +m[3];
+      for (let i = 1; i <= h; i++) { mo++; if (mo > 12) { mo = 1; yr++; } out.push(yr + m[2] + (m[3].length === 2 ? pad(mo) : mo)); }
+    } else if ((m = last.match(/^(\d{1,2})([-\/.])(\d{4})$/))) {
+      let mo = +m[1], yr = +m[3];
+      for (let i = 1; i <= h; i++) { mo++; if (mo > 12) { mo = 1; yr++; } out.push((m[1].length === 2 ? pad(mo) : mo) + m[2] + yr); }
+    } else if ((m = last.match(/^(\d{4})-(\d{2})-(\d{2})$/))) {
+      const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])), pm = prev.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      let days = 1;
+      if (pm) days = Math.round((d - new Date(Date.UTC(+pm[1], +pm[2] - 1, +pm[3]))) / 86400000) || 1;
+      for (let i = 1; i <= h; i++) {
+        if (days >= 28 && days <= 31) d.setUTCMonth(d.getUTCMonth() + 1);
+        else if (days >= 365 && days <= 366) d.setUTCFullYear(d.getUTCFullYear() + 1);
+        else d.setUTCDate(d.getUTCDate() + days);
+        out.push(d.toISOString().slice(0, 10));
+      }
+    } else if ((m = last.match(/^(\d{4})([-\s]?)([QqTt])(\d)$/))) {
+      let yr = +m[1], q = +m[4];
+      for (let i = 1; i <= h; i++) { q++; if (q > 4) { q = 1; yr++; } out.push(yr + m[2] + m[3] + q); }
+    } else if ((m = last.match(/^([QqTt])(\d)([-\s]?)(\d{4})$/))) {
+      let q = +m[2], yr = +m[4];
+      for (let i = 1; i <= h; i++) { q++; if (q > 4) { q = 1; yr++; } out.push(m[1] + q + m[3] + yr); }
+    } else if ((m = last.match(/^([A-Za-zÁ-úñÑ]{3})[a-zá-ú]*([-\s\/]?)(\d{2}|\d{4})$/)) && MESES_ES.includes(m[1].toLowerCase())) {
+      let mo = MESES_ES.indexOf(m[1].toLowerCase()), yr = +m[3];
+      const cap = m[1][0] !== m[1][0].toLowerCase();
+      for (let i = 1; i <= h; i++) {
+        mo++; if (mo > 11) { mo = 0; yr++; }
+        const name = cap ? MESES_ES[mo][0].toUpperCase() + MESES_ES[mo].slice(1) : MESES_ES[mo];
+        out.push(name + m[2] + (m[3].length === 2 ? pad(yr % 100) : yr));
+      }
+    }
+    if (!out.length) for (let i = 1; i <= h; i++) out.push('+' + i);
+    return out;
+  }
+  window.forecastSeries = forecastSeries;
+  window.nextPeriods = nextPeriods;
+  R.forecast = (c, def, P, o) => {
+    const y = def.series[0] || [];
+    const fc = forecastSeries(y, def.options);
+    if (!fc) return htmlIn(c, `<p style="color:${SOFT}; font-style:italic; padding:24px 12px; text-align:center">Hacen falta al menos 3 datos para proyectar.</p>`);
+    const n0 = y.length, gap = k => new Array(k).fill(null);
+    const series = [y.concat(gap(fc.H)), gap(n0).concat(fc.pred)];
+    fc.bands.forEach(b => { series.push(gap(n0).concat(b.lo)); series.push(gap(n0).concat(b.hi)); });
+    const method = 'Proyección: tendencia lineal' + (fc.s ? ' + estacionalidad de ' + fc.s + ' períodos' : '') + (fc.useLog ? ', en escala logarítmica' : '') +
+      ', ajustada sobre ' + fc.m + ' períodos. Bandas: intervalos de predicción al ' + fc.levels.join(' / ') + ' %.';
+    return R.fan_chart(c, {
+      chart_type: 'fan_chart', labels: def.labels.concat(nextPeriods(def.labels, fc.H)), series,
+      series_names: ['Real', 'Proyección'].concat(fc.levels.map(L => 'IC ' + L + ' %')),
+      options: { y_title: def.options.y_title, height: def.options.height }, _method: method,
+    }, P, o);
   };
 
   // ---- HTML / SVG a mano ----------------------------------------------------

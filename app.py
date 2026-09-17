@@ -90,6 +90,7 @@ CHART_TYPES = [
     "stacked_bar", "stacked_bar_100", "treemap", "sankey", "shaded_list",
     "boxplot", "bullet", "gauge",
     "bar_race", "line_race",   # "videos": avanzan en el tiempo con play
+    "forecast",                # proyección automática: tendencia + bandas calculadas en charts.js
 ]
 # "figure" = varios gráficos uno al lado del otro (hasta 3) con título,
 # subtítulo, nota al pie y fuente en común, al estilo de los "exhibits".
@@ -643,7 +644,7 @@ def chart_editable(data):
     return {
         "chart_type": data.get("chart_type", "bar_comparison"),
         "title": data.get("title", ""), "subtitle": data.get("subtitle", ""),
-        "note": data.get("note", ""), "source": data.get("source", ""),
+        "note": data.get("note", ""), "source": data.get("source", ""), "box": data.get("box", ""),
         "color": data.get("color", "orange"),
         "colors": data.get("colors") or [],
         "series_names": ", ".join(data.get("series_names", [])),
@@ -771,6 +772,7 @@ def show_post(slug):
             b["html"] = render_richtext(b["data"].get("text", ""))
         elif b["type"] == "chart":
             chart_defs.append({"id": f"chart-{b['id']}", **b["data"]})
+            b["box_html"] = render_richtext(b["data"]["box"]) if b["data"].get("box") else ""
         elif b["type"] == "figure":
             # Solo los paneles con datos se dibujan; el id lleva la posición.
             b["panels_with_data"] = [
@@ -778,6 +780,7 @@ def show_post(slug):
             ]
             for i, p in b["panels_with_data"]:
                 chart_defs.append({"id": f"chart-{b['id']}-{i}", **p})
+            b["box_html"] = render_richtext(b["data"]["box"]) if b["data"].get("box") else ""
 
     accent = post["accent"] if post["accent"] in ACCENTS else "blue"
     is_admin = bool(session.get("is_admin"))
@@ -931,7 +934,7 @@ def admin_edit_post(post_id):
         elif b["type"] == "figure":
             data = {
                 "title": data.get("title", ""), "subtitle": data.get("subtitle", ""),
-                "note": data.get("note", ""), "source": data.get("source", ""),
+                "note": data.get("note", ""), "source": data.get("source", ""), "box": data.get("box", ""),
                 "panels": [chart_editable(p) for p in data.get("panels", [])],
             }
         editable.append({"type": b["type"], "data": data})
@@ -1067,6 +1070,7 @@ def block_data_from_form(block_type, form):
             "subtitle": form.get("subtitle", "").strip(),
             "note": form.get("note", "").strip(),
             "source": form.get("source", "").strip(),
+            "box": str(form.get("box") or "").strip()[:2000],   # destacado dentro de la tarjeta (admite **negrita**)
             "color": color,
             "colors": colors,
             "labels": labels,
@@ -1087,6 +1091,7 @@ def block_data_from_form(block_type, form):
             "subtitle": form.get("subtitle", "").strip(),
             "note": form.get("note", "").strip(),
             "source": form.get("source", "").strip(),
+            "box": str(form.get("box") or "").strip()[:2000],   # destacado dentro de la tarjeta (admite **negrita**)
             "panels": panels,
         }
     return {}

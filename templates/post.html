@@ -50,6 +50,7 @@
           <img class="chart-logo" src="{{ url_for('static', filename='img/logo-watermark.png') }}" alt="Instituto de Energía — Universidad Austral">
         </div>
         <div class="chart-wrap" id="chart-{{ b.id }}"></div>
+        {% if b.box_html %}<div class="chart-box">{{ b.box_html | safe }}</div>{% endif %}
         {% if b.data.note %}<div class="chart-note">{{ b.data.note }}</div>{% endif %}
         <div class="chart-foot">
           <div class="chart-source">{% if b.data.source %}Fuente: {{ b.data.source }}{% endif %}</div>
@@ -74,6 +75,7 @@
           </div>
           {% endfor %}
         </div>
+        {% if b.box_html %}<div class="chart-box">{{ b.box_html | safe }}</div>{% endif %}
         {% if b.data.note %}<div class="chart-note">{{ b.data.note }}</div>{% endif %}
         <div class="chart-foot">
           <div class="chart-source">{% if b.data.source %}Fuente: {{ b.data.source }}{% endif %}</div>

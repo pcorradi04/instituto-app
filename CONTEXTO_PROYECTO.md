@@ -595,6 +595,24 @@ entre turnos. Estado al cierre de esa ronda:
   DOM del sitio); dirección → iframe normal con allowfullscreen. Editor:
   RENDER.embed con vista previa idéntica. Sin botones PNG en embeds
   (html2canvas no captura iframes). Tests: 140 chequeos.
+- **17 sep 2026** — Pedro pidió (1) "duplicar" un bloque ("lo mismo pero
+  abajo para modificar pocas cosas"): botón ⧉ en `tools()` → `duplicate(b)`
+  (copia profunda por JSON, inserta en idx+1, enfoca); en figuras, botón
+  "duplicar" por panel (`.panel-dup`, hasta 3). (2) "Un gráfico con
+  predicción futura, con IC y demás": ya existía `fan_chart` (se cargan los
+  números), se agregó `forecast` = proyección calculada en charts.js:
+  `forecastSeries(y, options)` (OLS sobre el índice de posición, índices
+  estacionales aditivos si `season` y m ≥ 2s, opción `log`, sigma de
+  residuos con gdl m-2-(s-1), intervalos de predicción
+  sigma·sqrt(1+1/m+(x-x̄)²/Sxx), z para 50/68/80/90/95/99, lo≥0 si la serie
+  es no negativa) + `nextPeriods(labels, h)` (rotula el futuro según el
+  formato: AAAA, AAAA-MM, MM/AAAA, AAAA-MM-DD, AAAA-Qn, Ene-26) y delega el
+  dibujo en `R.fan_chart` con `_method` → subtítulo de Chart.js al pie (sale
+  en el PNG). (3) Mensaje a mitad de turno con la captura del recuadro de la
+  matriz energética: "que deje agregar un box adentro del gráfico" → campo
+  `box` en chart y figure (guardado, editable, `render_richtext` →
+  `box_html`, `.chart-box` beige con borde de acento y negritas en acento;
+  en el editor, textarea `.ed` que vacío se ve apenas via `:has`). Tests: 144.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

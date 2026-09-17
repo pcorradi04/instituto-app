@@ -147,6 +147,34 @@ python test_app.py
    que solo ves vos, logueado ("Ver post ↗" te lo muestra tal cual va a
    quedar).
 
+**Duplicar.** En la barra de herramientas de cada bloque (aparece al pasar
+el mouse) está "⧉ duplicar": hace una copia completa justo debajo, para
+cambiarle pocas cosas (típico: el mismo gráfico con otra serie). En una
+figura, cada panel tiene su propio "duplicar", que lo copia como un panel
+más a la derecha.
+
+**Destacado dentro del gráfico.** Debajo del dibujo, cada gráfico y cada
+figura tienen un campo "Destacado": un recuadro beige adentro de la
+tarjeta para la lectura clave, en una o dos líneas ("En 2024 el gas fue el
+**47 %** del consumo"). Admite `**negrita**`, que sale en el color de
+acento. Vacío no se muestra. Sale también en el PNG.
+
+**Proyección automática.** Tipo de gráfico "Proyección automática
+(tendencia + bandas)", en "Evolución en el tiempo": cargás solo la serie
+histórica (Período | valor) y la app proyecta los períodos siguientes.
+Método: tendencia lineal por mínimos cuadrados; estacionalidad aditiva
+opcional (opción "Estacionalidad": 12 si es mensual, 4 si es trimestral;
+hacen falta al menos dos ciclos completos de datos, si no se ignora);
+escala logarítmica opcional para series que crecen a un porcentaje
+("Crecimiento porcentual: si"); bandas de confianza (por defecto 80 y
+95 %) que son intervalos de predicción de la regresión, calculados con la
+dispersión de los residuos y que se ensanchan hacia el futuro. Los
+períodos futuros se rotulan solos siguiendo el formato de los cargados
+(2026-07 → 2026-08, 2024 → 2025, Ene-26 → Feb-26, 2026-Q1 → 2026-Q2). El
+método queda escrito al pie del gráfico, para que el lector sepa que es una
+proyección estadística simple. Cuando los números salen de un modelo
+propio, usá "Pronóstico con bandas", que muestra lo que cargás.
+
 ## 2a. Gráficos con play ("videos") y embeds
 
 Hay dos tipos de gráfico que se mueven en el tiempo, pensados para mostrar
