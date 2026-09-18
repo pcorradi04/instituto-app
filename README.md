@@ -341,6 +341,46 @@ para arrancar rápido). Antes de que esto sea público en internet:
 3. Serví el sitio detrás de HTTPS (cualquier hosting moderno lo da gratis:
    Render, Railway, PythonAnywhere, o un VPS con Caddy/Nginx + Let's Encrypt).
 
+## 4b. Varias personas a la vez (y por qué un Excel compartido "se bloquea")
+
+**En el blog no hay bloqueos.** Es una aplicación web con una base de
+datos: cada persona que entra al panel trabaja en su navegador, y el sitio
+nunca le dice a nadie "archivo en uso". Dos personas pueden editar dos
+posts distintos al mismo tiempo sin enterarse una de la otra. La única
+regla práctica: **un mismo post, una persona a la vez.** Al guardar, el
+editor manda el post entero, así que si dos personas tienen abierto el
+mismo post y guardan, queda lo del último que guardó y lo del otro se
+pierde. Si eso empieza a pasar seguido, avisá y le agrego un aviso ("este
+post cambió desde que lo abriste") antes de guardar.
+
+**En un Excel compartido sí, y no es un script.** Cuando un archivo `.xlsx`
+está en una carpeta de red o en un servidor y alguien lo abre, Excel crea
+al lado un archivito oculto de bloqueo (`~$nombre.xlsx`) con el nombre de
+usuario de Office de esa computadora. Mientras ese archivo exista, a
+cualquier otro que abra el mismo Excel le sale "Archivo en uso: *tal
+usuario* bloqueó la edición" y solo puede verlo en modo lectura. Excel lo
+hace a propósito porque no sabe mezclar los cambios de dos personas sobre
+el mismo archivo: prefiere que uno espere. Detalles útiles:
+
+- El nombre que aparece ("Oficina Buenos Aires", por ejemplo) es el nombre
+  de usuario configurado en Office en la PC que lo abrió, no necesariamente
+  una persona.
+- Se libera solo cuando esa persona cierra el archivo. La opción "Recibir
+  una notificación cuando el archivo esté disponible" te avisa en ese
+  momento.
+- "Guardar y editar una copia" crea un segundo archivo separado: después
+  hay dos versiones y alguien tiene que juntarlas a mano. Evitarla salvo
+  que sea a propósito.
+- Si dice que está bloqueado y nadie lo tiene abierto, es un bloqueo
+  "fantasma": Excel se cerró mal y el `~$nombre.xlsx` quedó. Se resuelve
+  mostrando los archivos ocultos en esa carpeta y borrando ese archivito
+  (o esperando a que el servidor lo suelte, suele ser en minutos).
+- Para que varias personas editen **el mismo** Excel al mismo tiempo hace
+  falta la coautoría de Microsoft 365: el archivo tiene que estar en
+  OneDrive o SharePoint y abrirse con "Autoguardado" activado. Ahí no hay
+  archivo de bloqueo y se ven los cambios de los demás en vivo. Con una
+  carpeta de red común no existe esa opción.
+
 ## 5. Deploy — opciones, de más simple a más control
 
 | Dónde | Cómo | Costo aprox. |
