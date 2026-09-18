@@ -525,7 +525,20 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
     const onData = () => { autoNames(false); buildColors(); redraw(); };
     bind(inNames, d, 'series_names', () => { buildColors(); redraw(); });
     bind(taTable, d, 'table', onData);
-    sepSel.addEventListener('change', () => { d.sep = sepSel.value; onData(); });
+    // El ejemplo gris, la línea "Columnas" y "Cargar ejemplo" siguen al
+    // separador elegido: con ";" o tabulación se muestran además los
+    // decimales con coma, como los pega Excel en castellano.
+    const SEP_TXT = { '': ' | ', '|': ' | ', ',': ', ', ';': '; ', tab: '\t' };
+    function withSep(text, numbers) {
+      const s = SEP_TXT[d.sep] || ' | ';
+      return String(text || '').split('\n').map(l => l.split(' | ').map(c => (numbers && (d.sep === ';' || d.sep === 'tab') && /^-?\d+\.\d+$/.test(c)) ? c.replace('.', ',') : c).join(s)).join('\n');
+    }
+    function paintExample() {
+      const spec = CHART_SPECS[d.chart_type];
+      panel.querySelector('.ccols-txt').textContent = 'Columnas: ' + withSep(spec.columns, false);
+      taTable.placeholder = withSep(spec.placeholder, true);
+    }
+    sepSel.addEventListener('change', () => { d.sep = sepSel.value; paintExample(); onData(); });
 
     // ---- Excel / CSV: subir un archivo, o bajar la plantilla del tipo -----
     // La librería de Excel (SheetJS) se carga desde el CDN recién cuando
@@ -651,8 +664,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
     function loadExample() {
       const spec = CHART_SPECS[d.chart_type];
       if (String(d.table || '').trim() && !confirm('¿Reemplazar los datos cargados por los de ejemplo?')) return;
-      d.table = spec.placeholder; taTable.value = d.table;
-      d.sep = ''; sepSel.value = '';
+      d.table = withSep(spec.placeholder, true); taTable.value = d.table;   // en el separador elegido
       if (spec.names) { d.series_names = spec.names_placeholder || ''; inNames.value = d.series_names; }
       dirty(); buildColors(); redraw(); grow(taTable);
       taTable.focus();
@@ -673,8 +685,7 @@ const PUBLISHED = {{ 'true' if post['status'] == 'published' else 'false' }};
         optsRow.append(lab, inp);
       });
       optsRow.hidden = !(spec.options && spec.options.length);
-      panel.querySelector('.ccols-txt').textContent = 'Columnas: ' + spec.columns;
-      taTable.placeholder = spec.placeholder;
+      paintExample();
       panel.querySelector('.chint').textContent = spec.hint + ' Una fila por línea; columnas separadas con "|", coma, punto y coma o tabulación (se detecta solo). Podés pegar directo desde Excel o subir el archivo. Si la primera fila trae los nombres de las columnas, se toma como encabezado. Si falta un dato, dejá la celda vacía.';
     }
     sel.addEventListener('change', () => { d.chart_type = sel.value; dirty(); buildPanel(); buildColors(); redraw(); });
