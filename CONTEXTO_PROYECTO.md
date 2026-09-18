@@ -613,16 +613,13 @@ entre turnos. Estado al cierre de esa ronda:
   `box` en chart y figure (guardado, editable, `render_richtext` →
   `box_html`, `.chart-box` beige con borde de acento y negritas en acento;
   en el editor, textarea `.ed` que vacío se ve apenas via `:has`). Tests: 145.
-- **18 sep 2026** — Pedro mandó una captura de un Excel de su trabajo con
-  el cartel "Archivo en uso: X bloqueó la edición" y pidió sumarlo al
-  manual y explicarle por qué pasa. README 4b: el blog no bloquea (web +
-  base; regla: un mismo post, una persona a la vez, porque el guardado
-  manda el post entero y gana el último; posible mejora: aviso de "el post
-  cambió desde que lo abriste"); Excel en carpeta de red usa el archivo
-  oculto `~$nombre.xlsx` como bloqueo (no es un script), bloqueos fantasma,
-  "guardar una copia" bifurca, coautoría real solo con OneDrive/SharePoint
-  + Autoguardado. No se copió ningún dato de la captura (era información
-  financiera de su empresa).
+- **18 sep 2026** — Pedro mandó por error (era para otro chat) una captura
+  de un Excel de su trabajo con "Archivo en uso" y pidió explicarlo en el
+  manual; después pidió descartarlo. Quedó solo lo que sí es del blog,
+  README 4b: no hay bloqueos (web + base); regla "un mismo post, una
+  persona a la vez", porque el guardado manda el post entero y gana el
+  último; posible mejora: aviso de "el post cambió desde que lo abriste".
+  No se copió ningún dato de la captura.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.
