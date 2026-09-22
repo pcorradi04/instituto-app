@@ -261,6 +261,25 @@ ok('placeholder="Destacado dentro del gráfico' in ehtml and '"box": "Lectura: *
    "editor: campo de destacado en gráficos y figuras, botón duplicar en bloques y en paneles de figura")
 ok("R.forecast" in js and "function forecastSeries" in js and "function nextPeriods" in js and "forecast: ['Período', 'Valor']" in js,
    "charts.js: proyección automática (tendencia + bandas) con períodos futuros generados solos")
+
+# --- montaje bajo /blog (sitio del Instituto) --------------------------------
+from werkzeug.test import Client as WClient  # noqa: E402
+pc = WClient(appmod.PrefixMiddleware(app.wsgi_app, "/blog"))
+r = pc.get("/blog/")
+home_p = r.get_data(as_text=True)
+ok(r.status_code == 200 and 'href="/blog/static/style.css"' in home_p and 'action="/blog/"' in home_p and 'href="/blog/"' in home_p,
+   "bajo /blog: la portada responde y los links salen con el prefijo (estilos, buscador, logo)")
+r = pc.get("/blog/admin/")
+ok(r.status_code == 302 and r.headers["Location"].startswith("/blog/admin/login"), "bajo /blog: el panel redirige al login con el prefijo")
+r = pc.post("/blog/admin/login", data={"password": PW})
+ok(r.status_code == 302 and r.headers["Location"].endswith("/blog/admin/"), "bajo /blog: el login entra y vuelve al panel con el prefijo")
+r = pc.get("/blog/post/" + slug)   # el post es borrador todavía: se ve logueado
+post_p = r.get_data(as_text=True)
+ok(r.status_code == 200 and 'src="/blog/static/charts.js"' in post_p and 'href="/blog/admin/logout"' in post_p
+   and 'src="/blog/static/img/logo-footer-white.png"' in post_p and 'src="/static/' not in post_p and 'href="/static/' not in post_p,
+   "bajo /blog: el post carga sus scripts, imágenes y links del panel con el prefijo, y ninguno sin él")
+ok(pc.get("/").status_code == 302 and pc.get("/").headers["Location"] == "/blog/" and pc.get("/otra-cosa").status_code == 404,
+   "bajo /blog: la raíz del sitio redirige al blog y otras rutas dan 404")
 save({**GENERAL, "blocks": BLOCKS2})
 html = text(c.get("/post/" + slug))   # los chequeos que siguen miran el post con BLOCKS2
 ok('<a href="https://indec.gob.ar/x?a=1&amp;b=2" target="_blank" rel="noopener">el informe</a>' in html

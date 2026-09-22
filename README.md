@@ -360,6 +360,7 @@ agrego un aviso ("este post cambió desde que lo abriste") antes de guardar.
 | **Railway.app** | Muy parecido a Render, así de simple. | Similar |
 | **PythonAnywhere** | Pensado específicamente para apps chicas de Flask, sin Docker ni nada. | Gratis para probar, planes desde ~5 USD/mes |
 | **VPS propio** (DigitalOcean, Hetzner) | Más control, pero hay que instalar y mantener vos mismo Nginx + gunicorn + certificados. | Desde ~5 USD/mes, pero más trabajo de mantenimiento |
+| **Dentro del sitio del Instituto** (ieaustral.com/blog) | El servidor del sitio pasa `/blog` por proxy a gunicorn; la app se monta bajo ese prefijo con `URL_PREFIX=/blog`. Ficha técnica y configuración de ejemplo en `DEPLOY.md`, sección 8. | El hosting que ya tengan |
 
 El comando de arranque en producción (en vez de `python app.py`) es
 `gunicorn app:app`. Ya está en `requirements.txt` y en el `Procfile`, así que

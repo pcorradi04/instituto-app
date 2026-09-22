@@ -70,6 +70,52 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SECURE_COOKIES", "0") == "
 # imagen subida. Si se pasa, Flask corta con un error 413 que se maneja abajo.
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 
+
+# ---------------------------------------------------------------------------
+# Montaje bajo una ruta (ej. https://ieaustral.com/blog) y proxy inverso.
+# Toda la app genera sus direcciones con url_for, así que basta con que
+# el servidor WSGI sepa el prefijo (SCRIPT_NAME) para que salgan como
+# /blog/post/... y /blog/admin/... solas. Dos formas, según cómo lo mande
+# el proxy del sitio:
+#   URL_PREFIX=/blog   el proxy pasa la URL completa (/blog/post/x): acá
+#                      se recorta el prefijo y se deja en SCRIPT_NAME.
+#   BEHIND_PROXY=1     el proxy manda X-Forwarded-For / -Proto / -Host /
+#                      -Prefix: se confía en esos encabezados (ProxyFix).
+# Se pueden usar las dos a la vez.
+# ---------------------------------------------------------------------------
+URL_PREFIX = os.environ.get("URL_PREFIX", "").strip().rstrip("/")
+if URL_PREFIX and not URL_PREFIX.startswith("/"):
+    URL_PREFIX = "/" + URL_PREFIX
+
+
+class PrefixMiddleware:
+    """Sirve la app bajo `prefix`: /blog/... entra como /... con SCRIPT_NAME
+    = /blog. La raíz del sitio redirige al blog; el resto, 404."""
+
+    def __init__(self, wsgi, prefix):
+        self.wsgi, self.prefix = wsgi, prefix
+
+    def __call__(self, environ, start_response):
+        path = environ.get("PATH_INFO", "")
+        if path == self.prefix or path.startswith(self.prefix + "/"):
+            environ["SCRIPT_NAME"] = environ.get("SCRIPT_NAME", "") + self.prefix
+            environ["PATH_INFO"] = path[len(self.prefix):] or "/"
+            return self.wsgi(environ, start_response)
+        if path in ("", "/"):
+            start_response("302 FOUND", [("Location", self.prefix + "/"), ("Content-Length", "0")])
+            return [b""]
+        body = f"No encontrado. El blog vive en {self.prefix}/".encode()
+        start_response("404 NOT FOUND", [("Content-Type", "text/plain; charset=utf-8"), ("Content-Length", str(len(body)))])
+        return [body]
+
+
+if URL_PREFIX:
+    app.config["APPLICATION_ROOT"] = URL_PREFIX
+    app.wsgi_app = PrefixMiddleware(app.wsgi_app, URL_PREFIX)
+if os.environ.get("BEHIND_PROXY", "0") == "1":
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 # Clave del panel de administración. En producción, definila como variable
 # de entorno ADMIN_PASSWORD en vez de dejarla acá.
 ADMIN_PASSWORD_HASH = generate_password_hash(os.environ.get("ADMIN_PASSWORD", "energia2026"))

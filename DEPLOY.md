@@ -183,6 +183,68 @@ Hacelo antes de cualquier cambio grande, y cada tanto.
 4. Cuando el DNS propague (hasta 24 h), en "Web" → "Security" → activar el
    certificado HTTPS automático (Let's Encrypt) y Force HTTPS.
 
+## 8. Integrarla en el sitio del Instituto (ieaustral.com/blog)
+
+Ficha técnica para quien administre el hosting del sitio:
+
+- **Qué es**: una aplicación web en **Python 3.11+** (probada con 3.12)
+  hecha con **Flask 3**, con los datos en **SQLite** (un archivo). El
+  frontend es HTML/CSS/JavaScript propio más Chart.js desde
+  `cdnjs.cloudflare.com` (si el sitio tiene una política CSP, hay que
+  permitir scripts de ese dominio). Sin Docker, sin Node, sin base de datos
+  externa. Dependencias en `requirements.txt` (Flask, python-dotenv,
+  gunicorn).
+- **Cómo corre**: un proceso `gunicorn app:app` escuchando en un puerto
+  local (ej. 8001), y el servidor web del sitio (nginx, Apache, IIS) le
+  pasa por proxy inverso todo lo que empiece con `/blog`. Consume menos de
+  100 MB de RAM. Con SQLite, usar 1 o 2 workers de gunicorn.
+- **Qué necesita en el servidor**: la carpeta `instance/` (base de datos
+  `instituto.db` + `uploads/`) en un disco persistente y con copia de
+  resguardo periódica: **eso es todo el contenido**. Un archivo `.env` con
+  `ADMIN_PASSWORD`, `SECRET_KEY`, `SECURE_COOKIES=1` y, para este montaje,
+  `URL_PREFIX=/blog`, `BEHIND_PROXY=1` y `SITE_URL=https://ieaustral.com`
+  (solo el dominio). HTTPS lo da el sitio. Salida SMTP solo si quieren los
+  avisos por mail (sección 5b).
+- **Rutas**: la app genera todas sus direcciones de forma relativa al
+  prefijo, así que bajo `/blog` quedan `ieaustral.com/blog` (portada),
+  `ieaustral.com/blog/post/<nombre>` y `ieaustral.com/blog/admin/` (panel).
+  Nada que cambiar en el código: solo las variables de arriba.
+
+Ejemplo de configuración con nginx (el proxy pasa la URL completa; la app
+recorta el `/blog` sola gracias a `URL_PREFIX`):
+
+```nginx
+location /blog {
+    proxy_pass         http://127.0.0.1:8001;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+    proxy_set_header   X-Forwarded-Host  $host;
+    client_max_body_size 12m;   # imágenes de hasta 10 MB
+}
+```
+
+Arranque (como servicio de systemd o equivalente, para que se relance
+solo):
+
+```bash
+cd /ruta/instituto-app && venv/bin/gunicorn app:app --bind 127.0.0.1:8001 --workers 2
+```
+
+Si el proxy prefiere **quitar** el `/blog` antes de pasar la URL (algunos
+lo hacen así), no se pone `URL_PREFIX`: alcanza con `BEHIND_PROXY=1` y que
+el proxy mande el encabezado `X-Forwarded-Prefix: /blog`.
+
+Alternativa aún más simple, si el sitio del Instituto está en un CMS
+(WordPress u otro) y prefieren no tocar su servidor: un **subdominio**
+(`blog.ieaustral.com`) apuntando a donde corre la app hoy, sin prefijo, y
+un link "Blog" en el menú del sitio. Funciona igual y no mezcla dos
+sistemas en el mismo servidor.
+
+Actualizaciones: `git pull` en la carpeta del proyecto y reiniciar el
+servicio de gunicorn. La base y las imágenes no están en el repo, así que
+el `pull` nunca las pisa.
+
 ## Alternativa: Render / Railway
 
 El repo también trae `Procfile` y `gunicorn` en `requirements.txt`, así que

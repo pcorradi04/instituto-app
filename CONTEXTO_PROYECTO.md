@@ -620,6 +620,19 @@ entre turnos. Estado al cierre de esa ronda:
   persona a la vez", porque el guardado manda el post entero y gana el
   último; posible mejora: aviso de "el post cambió desde que lo abriste".
   No se copió ningún dato de la captura.
+- **22 sep 2026** — Eugenia (IE Austral, contacto pasado por Luciano)
+  escribió a Pedro para "levantar la app dentro del sitio del Instituto",
+  idealmente en ieaustral.com/blog, manteniendo el panel, y preguntó
+  tecnología, requisitos de producción y si soporta una ruta /blog. Se dejó
+  la app lista para eso: `URL_PREFIX` (PrefixMiddleware: recorta el prefijo
+  y lo pone en SCRIPT_NAME; raíz → 302 al blog; otras rutas 404) y
+  `BEHIND_PROXY=1` (ProxyFix x_for/x_proto/x_host/x_prefix). No había rutas
+  absolutas en templates ni JS (todo url_for); `client_ip` ya usaba
+  X-Forwarded-For; `site_url` usa url_root (incluye el prefijo) o SITE_URL
+  (solo dominio). DEPLOY.md sección 8 = ficha técnica + nginx + gunicorn +
+  alternativa subdominio. Tests: 149 chequeos (portada, post, admin y raíz
+  bajo /blog con werkzeug.test.Client). Se le redactó a Pedro la respuesta
+  para Eugenia.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.
