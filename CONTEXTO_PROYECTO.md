@@ -633,6 +633,22 @@ entre turnos. Estado al cierre de esa ronda:
   alternativa subdominio. Tests: 149 chequeos (portada, post, admin y raíz
   bajo /blog con werkzeug.test.Client). Se le redactó a Pedro la respuesta
   para Eugenia.
+- **23–24 sep 2026** — Reunión Pedro + María Eugenia Ventura (IE Austral):
+  DonWeb no admite Python en el plan WordPress; el sitio queda en WordPress
+  y el blog va a un cloud server Linux aparte, en `blog.ieaustral.com`
+  (panel en /admin/). Eugenia dejó listo Ubuntu 24.04, IP 201.32.128.14,
+  SSH puerto 5464, usuario pedro con sudo, DNS ya apuntando; pidió migrar
+  todo (mencionó MySQL: no hace falta, es SQLite). Se agregó `deploy/`:
+  `instalar.sh` (apt, clon en ~/instituto-app, venv, .env con clave pedida
+  y SECRET_KEY generada + SECURE_COOKIES/BEHIND_PROXY/SITE_URL, servicio
+  systemd `instituto-blog` = gunicorn 127.0.0.1:8001 2 workers, nginx site,
+  certbot --nginx --redirect; no toca instance/; sin ufw a propósito para no
+  cerrar el puerto 5464), `actualizar.sh` (pull + pip + restart, reemplaza
+  a pull+Reload) y `backup.sh` (sqlite .backup + uploads → tar.gz diario por
+  cron, 30 copias). DEPLOY.md sección 9: ssh, instalar, traer instance/ por
+  zip (PythonAnywhere Files → scp -P 5464), apagar la copia vieja.
+  `.gitattributes`: `*.sh eol=lf`. Yo no entro al servidor: la clave es de
+  Pedro; él pega los comandos.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.
