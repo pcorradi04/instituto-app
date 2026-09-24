@@ -245,6 +245,88 @@ Actualizaciones: `git pull` en la carpeta del proyecto y reiniciar el
 servicio de gunicorn. La base y las imágenes no están en el repo, así que
 el `pull` nunca las pisa.
 
+## 9. Servidor propio (cloud server de DonWeb, Ubuntu 24.04) en blog.ieaustral.com
+
+Lo que se decidió con el Instituto (sep 2026): el sitio institucional sigue
+en WordPress y el blog corre en un servidor Linux aparte, en el subdominio
+`blog.ieaustral.com`, con el panel en `blog.ieaustral.com/admin/`. No hace
+falta MySQL: la app usa SQLite (un archivo). Todo el trabajo son tres
+partes: instalar, traer los datos, apagar la copia vieja.
+
+### 9.1 Instalar (una vez, unos 10 minutos)
+
+Desde tu compu, en PowerShell (Windows ya trae `ssh`):
+
+```bash
+ssh pedro@201.32.128.14 -p 5464
+```
+
+Pide la contraseña que te pasó Eugenia (no se ve mientras la escribís).
+Ya adentro del servidor, bajá el script de instalación y corrélo con el
+dominio y tu correo (el correo es para los avisos de vencimiento del
+certificado HTTPS):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pcorradi04/instituto-app/main/deploy/instalar.sh -o instalar.sh
+bash instalar.sh blog.ieaustral.com pcorradi04@gmail.com
+```
+
+El script pregunta una sola cosa: la clave para entrar al panel (elegí una
+nueva, no reutilices la de PythonAnywhere). Al terminar imprime "Listo:
+https://blog.ieaustral.com". Si certbot falla, casi siempre es porque el
+dominio no apunta todavía a esa IP o el puerto 80 está cerrado en el
+firewall de DonWeb: pedirle a Eugenia que abra 80 y 443, y repetir el
+comando que indica el script.
+
+### 9.2 Traer los datos desde PythonAnywhere
+
+Los posts, comentarios e imágenes están en la carpeta `instance/` de
+PythonAnywhere. Se bajan a tu compu y se suben al servidor nuevo:
+
+1. En PythonAnywhere, consola Bash:
+   ```bash
+   cd ~/instituto-app && zip -r ~/instance.zip instance
+   ```
+   Después, pestaña **Files** → `instance.zip` → botón de descarga. Queda
+   en tu carpeta Descargas.
+2. En tu compu, PowerShell, subirlo al servidor (pide la contraseña):
+   ```bash
+   scp -P 5464 "$HOME\Downloads\instance.zip" pedro@201.32.128.14:~
+   ```
+3. En el servidor (por `ssh`), reemplazar la carpeta vacía por la real y
+   reiniciar:
+   ```bash
+   cd ~/instituto-app && rm -rf instance && unzip -q ~/instance.zip && sudo systemctl restart instituto-blog
+   ```
+4. Abrí https://blog.ieaustral.com: tienen que estar los posts. Entrá al
+   panel con la clave nueva y probá guardar algo.
+
+Conviene hacer esto en un momento en que nadie esté cargando posts, y no
+cargar nada en PythonAnywhere después de bajar el zip: lo que se cargue
+ahí ya no viaja.
+
+### 9.3 Después de la mudanza
+
+- **Apagar la copia vieja**: en PythonAnywhere, pestaña Web → "Disable".
+  O dejarla un tiempo con un aviso; si querés que redirija al dominio
+  nuevo, avisame y lo armo.
+- **Backups automáticos**: una vez, en el servidor:
+  ```bash
+  (crontab -l 2>/dev/null; echo "15 3 * * * bash $HOME/instituto-app/deploy/backup.sh") | crontab -
+  ```
+  Deja cada noche un archivo `~/backups-blog/blog-AAAA-MM-DD.tar.gz` con la
+  base y las imágenes (conserva 30). Cada tanto, bajate uno a tu compu.
+- **Actualizar** cuando yo suba cambios (reemplaza al pull + Reload):
+  ```bash
+  bash ~/instituto-app/deploy/actualizar.sh
+  ```
+- **Ver qué pasa si algo falla**: `sudo systemctl status instituto-blog` y
+  `sudo journalctl -u instituto-blog -n 50`.
+- **Mails de aviso de comentarios** (opcional): igual que en 5b, agregando
+  las variables SMTP al `.env` del servidor (`nano ~/instituto-app/.env`) y
+  reiniciando el servicio.
+- **Redes sociales del banner**: variables `SOCIAL_*` en ese mismo `.env`.
+
 ## Alternativa: Render / Railway
 
 El repo también trae `Procfile` y `gunicorn` en `requirements.txt`, así que
