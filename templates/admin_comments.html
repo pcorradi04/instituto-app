@@ -10,7 +10,7 @@
 <body class="admin">
 <div class="admin-bar">
   <div><b>Instituto de Energía</b> — Comentarios</div>
-  <div><a href="{{ url_for('admin_dashboard') }}">← Posts</a><a href="{{ url_for('index') }}" target="_blank">Ver sitio ↗</a><a href="{{ url_for('admin_logout') }}">Cerrar sesión</a></div>
+  <div><a href="{{ url_for('admin_dashboard') }}">← Posts</a>{% if current_user_role == 'superadmin' %}<a href="{{ url_for('admin_users') }}">Usuarios</a>{% endif %}<a href="{{ url_for('index') }}" target="_blank">Ver sitio ↗</a><span style="color:var(--ink-soft);padding:0 8px;">{{ current_user_initials }}</span><a href="{{ url_for('admin_logout') }}">Salir</a></div>
 </div>
 <div class="admin-wrap">
   {% with messages = get_flashed_messages(with_categories=true) %}

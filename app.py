@@ -116,10 +116,6 @@ if os.environ.get("BEHIND_PROXY", "0") == "1":
     from werkzeug.middleware.proxy_fix import ProxyFix
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-# Clave del panel de administración. En producción, definila como variable
-# de entorno ADMIN_PASSWORD en vez de dejarla acá.
-ADMIN_PASSWORD_HASH = generate_password_hash(os.environ.get("ADMIN_PASSWORD", "energia2026"))
-
 ACCENTS = {
     "blue":   {"label": "Azul (institucional)", "hex": "#0000CC"},
     "orange": {"label": "Naranja (petróleo)",    "hex": "#C1622E"},
@@ -292,6 +288,15 @@ def init_db():
         ip TEXT DEFAULT '',
         created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        initials TEXT UNIQUE NOT NULL,
+        full_name TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'admin',
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+    );
     """)
     # Migraciones chicas: columnas agregadas después de la primera versión.
     cols = {r[1] for r in db.execute("PRAGMA table_info(posts)")}
@@ -309,6 +314,16 @@ def init_db():
     ).fetchall():
         n += 1
         db.execute("UPDATE posts SET post_number = ? WHERE id = ?", (n, row[0]))
+    # Si no hay ningún usuario, crear el superadmin con la clave del .env.
+    if not db.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+        admin_pw = os.environ.get("ADMIN_PASSWORD", "energia2026")
+        admin_initials = os.environ.get("ADMIN_INITIALS", "AD").strip().upper()
+        admin_name = os.environ.get("ADMIN_NAME", "Administrador").strip()
+        now_u = datetime.now(timezone.utc).isoformat()
+        db.execute(
+            "INSERT INTO users (initials, full_name, password_hash, role, created_at) VALUES (?, ?, ?, 'superadmin', ?)",
+            (admin_initials, admin_name, generate_password_hash(admin_pw), now_u),
+        )
     db.commit()
     db.close()
 
@@ -319,36 +334,69 @@ init_db()
 
 
 # ---------------------------------------------------------------------------
-# Autenticación (panel admin — una sola clave compartida, simple a propósito)
+# Autenticación (panel admin — cuentas individuales con iniciales + clave)
 # ---------------------------------------------------------------------------
+
+def current_user():
+    """El usuario logueado, o None."""
+    uid = session.get("user_id")
+    if not uid:
+        return None
+    db = get_db()
+    return db.execute("SELECT * FROM users WHERE id = ? AND is_active = 1", (uid,)).fetchone()
+
 
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if not session.get("is_admin"):
+        if not session.get("user_id"):
             return redirect(url_for("admin_login", next=request.path))
         return view(*args, **kwargs)
     return wrapped
 
 
+def superadmin_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if session.get("user_role") != "superadmin":
+            abort(403)
+        return view(*args, **kwargs)
+    return wrapped
+
+
+@app.context_processor
+def inject_user():
+    return {
+        "current_user_initials": session.get("user_initials", ""),
+        "current_user_role": session.get("user_role", ""),
+    }
+
+
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
+        initials = request.form.get("initials", "").strip().upper()
         pw = request.form.get("password", "")
-        if check_password_hash(ADMIN_PASSWORD_HASH, pw):
+        db = get_db()
+        user = db.execute("SELECT * FROM users WHERE initials = ? AND is_active = 1", (initials,)).fetchone()
+        if user and check_password_hash(user["password_hash"], pw):
+            session["user_id"] = user["id"]
+            session["user_initials"] = user["initials"]
+            session["user_role"] = user["role"]
             session["is_admin"] = True
             nxt = request.args.get("next", "")
-            # Solo rutas internas del sitio (un link armado a mano no puede
-            # mandarte a otro dominio después de loguearte).
             if not nxt.startswith("/") or nxt.startswith("//"):
                 nxt = url_for("admin_dashboard")
             return redirect(nxt)
-        flash("Clave incorrecta.", "error")
+        flash("Usuario o contraseña incorrectos.", "error")
     return render_template("admin_login.html")
 
 
 @app.route("/admin/logout")
 def admin_logout():
+    session.pop("user_id", None)
+    session.pop("user_initials", None)
+    session.pop("user_role", None)
     session.pop("is_admin", None)
     return redirect(url_for("index"))
 
@@ -950,12 +998,13 @@ def admin_dashboard():
 def admin_create_post():
     db = get_db()
     title = request.form.get("title", "Nuevo post").strip() or "Nuevo post"
+    author = session.get("user_initials", "")
     now = datetime.now(timezone.utc).isoformat()
     slug = unique_slug(db, title)
     cur = db.execute(
         """INSERT INTO posts (slug, title, eyebrow, dek, status, accent, author, created_at, updated_at)
-           VALUES (?, ?, '', '', 'draft', 'blue', '', ?, ?)""",
-        (slug, title, now, now),
+           VALUES (?, ?, '', '', 'draft', 'blue', ?, ?, ?)""",
+        (slug, title, author, now, now),
     )
     db.commit()
     return redirect(url_for("admin_edit_post", post_id=cur.lastrowid))
@@ -1245,6 +1294,87 @@ def admin_comment_delete(cid):
     db.commit()
     flash("Comentario borrado.", "ok")
     return redirect(safe_next(url_for("admin_comments")))
+
+
+# ---------------------------------------------------------------------------
+# Admin — gestión de usuarios (solo superadmin)
+# ---------------------------------------------------------------------------
+
+@app.route("/admin/usuarios")
+@login_required
+@superadmin_required
+def admin_users():
+    db = get_db()
+    users = db.execute("SELECT * FROM users ORDER BY created_at ASC").fetchall()
+    return render_template("admin_users.html", users=users)
+
+
+@app.route("/admin/usuarios/crear", methods=["POST"])
+@login_required
+@superadmin_required
+def admin_create_user():
+    db = get_db()
+    initials = request.form.get("initials", "").strip().upper()
+    full_name = request.form.get("full_name", "").strip()
+    password = request.form.get("password", "")
+    if len(initials) < 2 or len(initials) > 10:
+        flash("Las iniciales tienen que tener entre 2 y 10 caracteres.", "error")
+        return redirect(url_for("admin_users"))
+    if not re.fullmatch(r"[A-Z]+", initials):
+        flash("Las iniciales solo pueden ser letras (sin espacios ni números).", "error")
+        return redirect(url_for("admin_users"))
+    if len(full_name) < 2:
+        flash("Falta el nombre completo.", "error")
+        return redirect(url_for("admin_users"))
+    if len(password) < 4:
+        flash("La contraseña es muy corta (mínimo 4 caracteres).", "error")
+        return redirect(url_for("admin_users"))
+    if db.execute("SELECT 1 FROM users WHERE initials = ?", (initials,)).fetchone():
+        flash(f"Ya existe un usuario con las iniciales {initials}.", "error")
+        return redirect(url_for("admin_users"))
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        "INSERT INTO users (initials, full_name, password_hash, role, created_at) VALUES (?, ?, ?, 'admin', ?)",
+        (initials, full_name, generate_password_hash(password), now),
+    )
+    db.commit()
+    flash(f"Usuario {initials} ({full_name}) creado.", "ok")
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/usuarios/<int:user_id>/clave", methods=["POST"])
+@login_required
+@superadmin_required
+def admin_change_password(user_id):
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        abort(404)
+    password = request.form.get("password", "")
+    if len(password) < 4:
+        flash("La contraseña es muy corta (mínimo 4 caracteres).", "error")
+        return redirect(url_for("admin_users"))
+    db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(password), user_id))
+    db.commit()
+    flash(f"Contraseña de {user['initials']} cambiada.", "ok")
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/usuarios/<int:user_id>/borrar", methods=["POST"])
+@login_required
+@superadmin_required
+def admin_delete_user(user_id):
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        abort(404)
+    if user["id"] == session.get("user_id"):
+        flash("No te podés borrar a vos mismo.", "error")
+        return redirect(url_for("admin_users"))
+    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    db.commit()
+    flash(f"Usuario {user['initials']} eliminado.", "ok")
+    return redirect(url_for("admin_users"))
 
 
 # ---------------------------------------------------------------------------

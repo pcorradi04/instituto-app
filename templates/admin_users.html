@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Usuarios — Panel admin</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+<body class="admin">
+<div class="admin-bar">
+  <div><b>Instituto de Energía</b> — Usuarios</div>
+  <div><a href="{{ url_for('admin_dashboard') }}">← Posts</a><a href="{{ url_for('admin_comments') }}">Comentarios</a><a href="{{ url_for('index') }}" target="_blank">Ver sitio ↗</a><span style="color:var(--ink-soft);padding:0 8px;">{{ current_user_initials }}</span><a href="{{ url_for('admin_logout') }}">Salir</a></div>
+</div>
+<div class="admin-wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div class="flash {{ 'error' if category=='error' else 'ok' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <h1>Usuarios del panel</h1>
+  <p class="hint" style="margin-bottom:18px;">Cada persona del equipo entra con sus iniciales y su contraseña. Cuando crean un post, el autor se llena solo con sus iniciales.</p>
+
+  <table class="admin-table">
+    <thead><tr><th>Iniciales</th><th>Nombre</th><th>Rol</th><th>Creado</th><th></th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td><b>{{ u['initials'] }}</b></td>
+        <td>{{ u['full_name'] }}</td>
+        <td><span class="status-pill {{ 'published' if u['role'] == 'superadmin' else 'draft' }}">{{ 'Superadmin' if u['role'] == 'superadmin' else 'Admin' }}</span></td>
+        <td>{{ u['created_at'][:10] }}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <form method="post" action="{{ url_for('admin_change_password', user_id=u['id']) }}" style="display:inline;" onsubmit="var p=prompt('Nueva contraseña para {{ u['initials'] }}:'); if(!p||p.length<4){alert('La contraseña tiene que tener al menos 4 caracteres.');return false;} this.querySelector('[name=password]').value=p;">
+            <input type="hidden" name="password">
+            <button class="btn small secondary" type="submit">Cambiar clave</button>
+          </form>
+          {% if u['id'] != session.get('user_id') %}
+          <form method="post" action="{{ url_for('admin_delete_user', user_id=u['id']) }}" style="display:inline;" onsubmit="return confirm('¿Eliminar al usuario {{ u['initials'] }}?');">
+            <button class="btn small danger" type="submit">Eliminar</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2 style="margin-top:32px;">Crear usuario</h2>
+  <div class="admin-card">
+    <form method="post" action="{{ url_for('admin_create_user') }}" style="display:flex; gap:10px; flex-wrap:wrap; align-items:end;">
+      <div class="field" style="flex:0 0 100px;">
+        <label>Iniciales</label>
+        <input type="text" name="initials" maxlength="10" required placeholder="PC" style="text-transform:uppercase; padding:9px 11px; border:1px solid var(--line); font-family:'Courier New',monospace;">
+      </div>
+      <div class="field" style="flex:1; min-width:150px;">
+        <label>Nombre completo</label>
+        <input type="text" name="full_name" required placeholder="Pedro Corradi" style="padding:9px 11px; border:1px solid var(--line); font-family:'Courier New',monospace;">
+      </div>
+      <div class="field" style="flex:0 0 160px;">
+        <label>Contraseña</label>
+        <input type="password" name="password" required minlength="4" placeholder="****" style="padding:9px 11px; border:1px solid var(--line); font-family:'Courier New',monospace;">
+      </div>
+      <button class="btn" type="submit">+ Crear</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>
