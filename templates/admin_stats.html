@@ -41,7 +41,7 @@
     <tbody>
       {% for p in s.posts %}
       <tr>
-        <td>{% if p['post_number'] %}<span class="stats-num">{{ p['post_number'] }}</span> {% endif %}<a href="{{ url_for('show_post', slug=p['slug']) }}" target="_blank">{{ p['title'] }}</a></td>
+        <td>{% if p['post_number'] %}<span class="stats-num">{{ p['post_number'] }}</span> {% endif %}<a href="{{ url_for('admin_stats_post', post_id=p['id'], dias=s.days) }}" title="Detalle: cada visita y quiénes comentaron">{{ p['title'] }}</a></td>
         <td>{{ p['views'] }}</td>
         <td>{{ p['uniq'] }}</td>
         <td>{{ p['avg_secs'] | dur }}</td>

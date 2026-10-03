@@ -215,7 +215,16 @@ En el panel, "Estadísticas" muestra, para 7, 30, 90 o 365 días: visitas
 totales, lectores distintos, tiempo de lectura típico y qué porcentaje
 llegó al final; un gráfico de visitas por día; una tabla por post (visitas,
 lectores, tiempo medio, % que llegó al final, comentarios) más la portada;
-de qué sitios llegan los lectores; y computadora vs. celular.
+de qué sitios llegan los lectores; y computadora vs. celular. Tocando un
+post se ve el detalle: cada visita, una por una (cuándo, de dónde vino,
+dispositivo, cuánto leyó, hasta dónde llegó) y quiénes comentaron.
+
+**No se puede saber quién leyó.** Las visitas son anónimas por diseño: el
+navegador no manda nombre ni mail, y la IP ni identifica a una persona ni
+se guarda. Los únicos lectores con nombre son los que comentan. Si algún
+día hace falta saber qué personas leen (por ejemplo, para un boletín),
+el camino es que el lector se suscriba voluntariamente con su correo y
+reciba links personales; es un desarrollo aparte.
 
 Cómo funciona, porque importa para la privacidad: la medición es **propia
 de la app, sin Google ni ningún servicio externo y sin cookies**. Cada vez

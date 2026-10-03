@@ -689,6 +689,28 @@ def admin_stats():
     return render_template("admin_stats.html", s=stats_for(get_db(), days))
 
 
+@app.route("/admin/estadisticas/post/<int:post_id>")
+@login_required
+def admin_stats_post(post_id):
+    """Detalle de un post: cada visita (anónima: fecha y hora, origen,
+    dispositivo, tiempo, hasta dónde llegó) y quiénes comentaron, que son
+    los únicos lectores que dejan su nombre."""
+    db = get_db()
+    post = db.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
+    if not post:
+        abort(404)
+    days = request.args.get("dias", "30")
+    days = int(days) if days in ("7", "30", "90", "365") else 30
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    visits = db.execute(
+        "SELECT ts, ref, device, secs, scroll FROM pageviews WHERE post_id = ? AND ts >= ? ORDER BY ts DESC LIMIT 500",
+        (post_id, since)).fetchall()
+    commenters = db.execute(
+        "SELECT name, COUNT(*) AS n, MAX(created_at) AS last FROM comments WHERE post_id = ? AND status = 'approved' "
+        "GROUP BY name ORDER BY last DESC", (post_id,)).fetchall()
+    return render_template("admin_stats_post.html", post=post, visits=visits, commenters=commenters, days=days)
+
+
 def comment_counts(db):
     """{post_id: cantidad de comentarios aprobados}, para la portada."""
     return {r["post_id"]: r["c"] for r in db.execute(

@@ -673,6 +673,11 @@ entre turnos. Estado al cierre de esa ronda:
   bajó ≥70 %), serie diaria con charts.js tipo line, tabla por post (+
   portada), orígenes top 10, dispositivos, nota metodológica; filtro Jinja
   `dur`. `ANALYTICS=0` apaga. README 2a-bis. Tests: 161.
+  Después preguntó "¿y que me deje ver quién vio cada post?": se le explicó
+  que no se puede ni se debe (anónimo por diseño, IP no identifica y no se
+  guarda, ley 25.326); se agregó `/admin/estadisticas/post/<id>` con las
+  visitas una por una (anónimas) y quiénes comentaron; se propuso boletín
+  con links personales si de verdad necesitan nombres. Tests: 162.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

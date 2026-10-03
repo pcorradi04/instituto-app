@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visitas: {{ post['title'] }} — Instituto de Energía</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+<body class="admin">
+<div class="admin-bar">
+  <div><b>Instituto de Energía</b> — Estadísticas de lectura</div>
+  <div><a href="{{ url_for('admin_stats', dias=days) }}">← Todas las estadísticas</a><a href="{{ url_for('admin_dashboard') }}">Posts</a><a href="{{ url_for('admin_logout') }}">Salir</a></div>
+</div>
+<div class="admin-wrap">
+  <h1>{% if post['post_number'] %}<span class="stats-num">{{ post['post_number'] }}</span> {% endif %}{{ post['title'] }}</h1>
+  <p class="stats-period">Período:
+    {% for d, lab in [(7, '7 días'), (30, '30 días'), (90, '90 días'), (365, 'un año')] %}
+      {% if d == days %}<b>{{ lab }}</b>{% else %}<a href="{{ url_for('admin_stats_post', post_id=post['id'], dias=d) }}">{{ lab }}</a>{% endif %}{{ ' · ' if not loop.last }}
+    {% endfor %}
+    · <a href="{{ url_for('show_post', slug=post['slug']) }}" target="_blank">ver el post ↗</a>
+  </p>
+
+  <h2 class="stats-h2">Quiénes comentaron</h2>
+  {% if commenters %}
+  <table class="admin-table">
+    <thead><tr><th>Nombre</th><th>Comentarios</th><th>Último</th></tr></thead>
+    <tbody>{% for c in commenters %}<tr><td>{{ c['name'] }}</td><td>{{ c['n'] }}</td><td>{{ c['last'] | fecha_es }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% else %}<p class="stats-note">Nadie comentó este post todavía. Los que comentan son los únicos lectores que dejan su nombre: las visitas de abajo son anónimas.</p>{% endif %}
+
+  <h2 class="stats-h2">Visitas, una por una ({{ visits | length }}{% if visits | length == 500 %}, se muestran las últimas 500{% endif %})</h2>
+  <table class="admin-table">
+    <thead><tr><th>Cuándo</th><th>Vino de</th><th>Dispositivo</th><th>Tiempo de lectura</th><th>Llegó hasta</th></tr></thead>
+    <tbody>
+      {% for v in visits %}
+      <tr>
+        <td>{{ v['ts'] | fecha_es(hora=True) }}</td>
+        <td>{{ v['ref'] or '—' }}</td>
+        <td>{{ 'Celular o tablet' if v['device'] == 'celular' else 'Computadora' }}</td>
+        <td>{{ v['secs'] | dur }}</td>
+        <td>{{ (v['scroll'] ~ ' %') if v['scroll'] else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Sin visitas en este período.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="stats-note">Cada fila es una visita de un lector anónimo. No se guarda la dirección IP ni ningún dato que identifique a la persona; "—" en tiempo o "llegó hasta" quiere decir que el navegador no llegó a avisar (cerró muy rápido, o bloquea esos avisos).</p>
+</div>
+</body>
+</html>

@@ -411,6 +411,10 @@ ok("Estadísticas" in sh and "Título editado" in sh and "1 min 35 s" in sh and 
    "página de estadísticas: por post (tiempo medio), origen, gráfico por día")
 ok(anon.get("/admin/estadisticas").status_code == 302 and c.get("/admin/estadisticas?dias=999").status_code == 200, "estadísticas solo con login; período inválido cae a 30 días")
 ok("Estadísticas" in text(c.get("/admin/")), "el panel tiene el link a Estadísticas")
+sp = text(c.get(f"/admin/estadisticas/post/{pid}?dias=7"))
+ok("Visitas, una por una" in sp and "linkedin.com" in sp and "1 min 35 s" in sp and "80 %" in sp and "Nadie comentó" in sp
+   and f'href="/admin/estadisticas/post/{pid}?dias=7"' in sh and c.get("/admin/estadisticas/post/9999").status_code == 404,
+   "detalle por post: visitas anónimas una por una (cuándo, origen, dispositivo, tiempo, scroll) y quiénes comentaron")
 
 save({**GENERAL, "author": "", "blocks": BLOCKS})
 ok('class="byline">Publicado el ' in text(anon.get("/post/" + slug)), "sin autor: 'Publicado el fecha', sin repetir el nombre del Instituto")
