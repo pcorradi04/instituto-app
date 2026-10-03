@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Datos EIA — Instituto de Energía</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+<style>
+  .datos-intro{max-width:70ch;color:var(--ink-soft);margin:0 0 18px;}
+  .grupo{margin:0 0 6px;font:600 13px/1.4 'Courier New',monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
+  .serie{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line);}
+  .serie:first-of-type{border-top:0;}
+  .serie input[type=checkbox]{margin-top:4px;width:17px;height:17px;flex:0 0 auto;}
+  .serie .nom{font-weight:600;}
+  .serie .meta{color:var(--ink-soft);font-size:13px;margin-top:3px;}
+  .serie .meta a{color:var(--blue);}
+  .serie .guardado{font-family:'Courier New',monospace;font-size:12.5px;color:var(--ink-soft);margin-top:3px;}
+  .serie .sin{color:var(--rust);}
+  .traer{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--line);}
+  .traer .nota{color:var(--ink-soft);font-size:13px;max-width:46ch;}
+  .tarea{display:flex;gap:12px;align-items:center;}
+  .tarea .spin{width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--blue);border-radius:50%;animation:gira .8s linear infinite;flex:0 0 auto;}
+  @keyframes gira{to{transform:rotate(360deg)}}
+  .rev-table td{font-family:'Courier New',monospace;font-size:12.5px;}
+</style>
+</head>
+<body class="admin">
+<div class="admin-bar">
+  <div><b>Instituto de Energía</b> — Datos EIA</div>
+  <div><a href="{{ url_for('admin_dashboard') }}">Posts</a><a href="{{ url_for('admin_stats') }}">Estadísticas</a><a href="{{ url_for('admin_comments') }}">Comentarios</a><a href="{{ url_for('index') }}" target="_blank">Ver sitio ↗</a><span style="color:var(--ink-soft);padding:0 8px;">{{ current_user_initials }}</span><a href="{{ url_for('admin_logout') }}">Salir</a></div>
+</div>
+<div class="admin-wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div class="flash {{ 'error' if category=='error' else 'ok' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <h1>Traer datos</h1>
+  <p class="datos-intro">Elegí qué series querés y apretá el botón: se bajan de la
+    <b>EIA</b> (la agencia de energía de Estados Unidos) hasta el último dato publicado, se
+    guardan en la base histórica del Instituto y queda un <b>borrador</b> en Posts con un
+    gráfico y un párrafo de números por serie. No se publica nada.</p>
+
+  {% if not hay_clave %}
+  <div class="flash error">
+    Falta la clave de la EIA. Es gratis y llega por mail al instante:
+    <a href="https://www.eia.gov/opendata/register.php" target="_blank" rel="noopener">pedirla acá</a>.
+    Después se agrega al archivo <code>.env</code> del proyecto como
+    <code>EIA_API_KEY=la-clave</code> (ver <code>datos/README.md</code>).
+  </div>
+  {% endif %}
+
+  {% if tarea %}
+  <div class="admin-card">
+    {% if trabajando %}
+      <div class="tarea"><span class="spin"></span>
+        <div><b>Trayendo datos de la EIA...</b>
+          <div class="meta" style="color:var(--ink-soft);font-size:13px;">
+            {{ tarea['paso'] }} · empezó {{ tarea['inicio'][11:19] }} UTC{% if tarea['quien'] %} · lo pidió {{ tarea['quien'] }}{% endif %}
+          </div>
+        </div>
+      </div>
+    {% elif tarea['estado'] == 'error' %}
+      <b style="color:var(--rust);">La última búsqueda falló.</b>
+      <div style="margin-top:6px;">{{ tarea['mensaje'] }}</div>
+    {% else %}
+      <b>Última búsqueda: {{ tarea['mensaje'] }}</b>
+      <div style="margin-top:6px;color:var(--ink-soft);font-size:13px;">
+        {{ tarea['fin'][:16].replace('T', ' ') }} UTC{% if tarea['quien'] %} · {{ tarea['quien'] }}{% endif %}
+      </div>
+      {% if post %}
+      <div style="margin-top:12px;">
+        <a class="btn" href="{{ url_for('admin_edit_post', post_id=post['id']) }}">Abrir el borrador →</a>
+        <span style="color:var(--ink-soft);font-size:13px;margin-left:8px;">{{ post['title'] }}</span>
+      </div>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('admin_datos_traer') }}">
+    <div class="admin-card">
+      {% for nombre, series in grupos %}
+      <p class="grupo">{{ nombre }}</p>
+      {% for clave, d, g in series %}
+      <label class="serie">
+        <input type="checkbox" name="series" value="{{ clave }}" checked{{ ' disabled' if trabajando }}>
+        <span>
+          <span class="nom">{{ d['nombre'] }}</span>
+          <span class="meta">
+            {{ 'semanal' if d['frecuencia'] == 'weekly' else 'mensual' }} ·
+            {{ d['unidad'] }} ·
+            <a href="{{ d['pagina'] }}" target="_blank" rel="noopener">ver en la EIA ↗</a>
+          </span>
+          <span class="guardado">
+            {% if g and g['periodos'] %}
+              guardado: {{ g['periodos'] }} períodos, {{ g['desde'] }} → <b>{{ g['hasta'] }}</b>
+              {%- if g['revisiones'] %} · {{ g['revisiones'] }} revisión{{ 'es' if g['revisiones'] != 1 }}{% endif %}
+            {% else %}
+              <span class="sin">todavía no se capturó nunca</span>
+            {% endif %}
+          </span>
+        </span>
+      </label>
+      {% endfor %}
+      {% endfor %}
+
+      <div class="traer">
+        <button class="btn" type="submit"{{ ' disabled' if trabajando or not hay_clave }}>
+          {{ 'Trayendo datos...' if trabajando else 'Traer datos y armar el borrador' }}
+        </button>
+        <label style="font-size:13px;display:flex;gap:6px;align-items:center;">
+          <input type="checkbox" name="publicaciones" value="1" checked{{ ' disabled' if trabajando }}> sumar lo que publicó la EIA
+        </label>
+        <label style="font-size:13px;display:flex;gap:6px;align-items:center;">
+          <input type="checkbox" name="todas" value="1"{{ ' disabled' if trabajando }}> el borrador con todas las series guardadas
+        </label>
+        <label style="font-size:13px;display:flex;gap:6px;align-items:center;">
+          <input type="checkbox" name="completo" value="1"{{ ' disabled' if trabajando }}> bajar el histórico entero
+        </label>
+      </div>
+      <div class="traer" style="border-top:0;padding-top:0;margin-top:8px;">
+        <span class="nota" style="max-width:none;">
+          <b>Lo que publicó la EIA</b> son sus artículos (<i>Today in Energy</i>) y su informe
+          mensual de perspectivas (<i>Short-Term Energy Outlook</i>): van al final del borrador
+          como citas en inglés, con fecha y link, para quien escriba el análisis.
+          El borrador lleva <b>las series que marcás</b>; con la primera casilla lleva además las
+          otras que ya estén guardadas. Si hoy ya hay un borrador de estos y no se publicó, se
+          reemplaza; si ya se publicó, se crea uno nuevo y el publicado no se toca.
+          De cada serie se re-baja <b>solo el último año</b> (es donde la EIA corrige datos):
+          la segunda casilla fuerza a bajar todo el histórico de nuevo, que tarda más.
+        </span>
+      </div>
+    </div>
+  </form>
+
+  {% if revisiones %}
+  <h1 style="margin-top:34px;">Revisiones de la EIA</h1>
+  <p class="datos-intro">Datos que la EIA ya había publicado y después cambió. Se detectan
+    comparando cada captura con lo que teníamos guardado.</p>
+  <table class="admin-table rev-table">
+    <thead><tr><th>Serie</th><th>Período</th><th>Decía</th><th>Dice</th><th>Detectada</th></tr></thead>
+    <tbody>
+      {% for r in revisiones %}
+      <tr>
+        <td>{{ nombres.get(r['clave'], r['clave']) }}</td>
+        <td>{{ r['periodo'] }}</td>
+        <td>{{ '%g'|format(r['valor_anterior']) }}</td>
+        <td>{{ '%g'|format(r['valor_nuevo']) }}</td>
+        <td>{{ r['detectada'][:16].replace('T', ' ') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% if trabajando %}
+<script>
+  // Mientras trabaja, recargar sola para mostrar el avance.
+  setTimeout(function () { location.reload(); }, 2500);
+</script>
+{% endif %}
+</body>
+</html>

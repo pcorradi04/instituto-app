@@ -678,6 +678,106 @@ entre turnos. Estado al cierre de esa ronda:
   guarda, ley 25.326); se agregó `/admin/estadisticas/post/<id>` con las
   visitas una por una (anónimas) y quiénes comentaron; se propuso boletín
   con links personales si de verdad necesitan nombres. Tests: 162.
+- **3 oct 2026 (tarde) — captura automática de datos de la EIA**. Luciano
+  mandó links del navegador de datos de la EIA (exportación de gas natural,
+  exportación semanal de propano, producción de crudo) y pidió por audio
+  "fabricar algo automático, una vez por semana, que vaya a buscar datos a la
+  EIA", arrancando por algo simple. Aclaró dos cosas importantes: la EIA es
+  **solo para seguimiento de EE.UU. y otros países, no para Argentina** (para
+  Argentina: Secretaría de Energía, ENARGAS, INDEC), y que hay mucha
+  información desactualizada en el dashboard, así que la idea es seguir pocas
+  series bien y ampliar de a poco. Pedro propuso que el informe quede en
+  borrador para chequear antes de publicar: así se hizo.
+  Carpeta nueva `datos/` (sin dependencias nuevas: `urllib` + `sqlite3`):
+  `series.py` (registro de QUÉ se sigue: 4 series de EE.UU. — propano semanal
+  `W_EPLLPZ_EEX_NUS-Z00_MBBLD`, gas natural `N9130US2`, GNL `N9133US2`,
+  crudo `MCRFPUS2`; cada una con `candidatos` = varios (ruta, código) que se
+  prueban en orden, `agregacion` promedio/suma según sea caudal o volumen);
+  `eia_api.py` (cliente de la API v2 con reintentos, paginado y la clave
+  tapada con `***` en todo mensaje de error, porque viaja en la URL; además
+  `--explorar RUTA [--faceta series --contiene X]` para encontrar códigos sin
+  adivinar); `almacen.py` (base histórica propia `datos/datos.db`: tablas
+  `series`, `observaciones`, `revisiones`, `capturas` — guarda el valor viejo
+  cuando la EIA **revisa** un dato ya publicado, que es el ángulo de auditoría
+  que le interesa a Luciano); `informe.py` (análisis aritmético: último dato,
+  variación contra el período anterior y contra el mismo período del año
+  anterior, promedio móvil, acumulado del año contra el mismo tramo del año
+  anterior, máximo y mínimo de la ventana; y el armado del borrador pasando
+  cada bloque por `block_data_from_form()` de app.py, así un gráfico del
+  automático es indistinguible de uno hecho a mano y se edita igual);
+  `semanal.py` (el ejecutable: `--series`, `--solo-captura`, `--solo-informe`,
+  `--demo` con datos inventados y base aparte `demo.db`, `--estado`, `--db`,
+  `--datos`, `--explorar`, log en `datos/semanal.log` con recorte a medio
+  mega). El texto generado es a propósito seco y sin causas: el criterio
+  editorial del Instituto es que el análisis lo escribe una persona, y el
+  borrador arranca con un callout naranja que lo dice. Correr dos veces el
+  mismo día reemplaza el borrador del día; si ese borrador ya se publicó, crea
+  uno nuevo y no lo toca. Programación: `datos/correr_semanal.bat` + línea de
+  `schtasks` (Windows) o de `crontab` (servidor, lunes 7:30) en
+  `datos/README.md`. `deploy/backup.sh` ahora también copia `datos/datos.db`.
+  Tests: `datos/test_datos.py`, 68 chequeos sin internet ni clave (formato de
+  números a la argentina, las cuentas del análisis con series armadas a mano,
+  detección de revisiones, idempotencia, serie caída que no impide el informe,
+  y el borrador completo verificado en una base del blog temporal). Verificado
+  además que el borrador **renderiza**: post público 200, editor del panel 200
+  con sus 4 gráficos (test client sobre una copia de la base real).
+  **Pendiente de la primera corrida real**: la clave de la EIA
+  (`EIA_API_KEY` en el `.env`, gratis en
+  https://www.eia.gov/opendata/register.php) la tiene que pedir Pedro. Hasta
+  entonces los 4 códigos de serie están puestos según la documentación y los
+  links que mandó Luciano, pero no se pudieron confirmar contra la API: si
+  alguno no devuelve datos, el script lo dice y se busca el correcto con
+  `--explorar`.
+- **3 oct 2026 (noche) — el botón en el panel**. Con la clave ya puesta se
+  verificó la primera corrida real: los 4 códigos de serie eran correctos
+  (propano 852 semanas desde jun-2010, las tres mensuales 199 meses desde
+  ene-2010; crudo 13.948 mbd en jul-2026, gas 827.156 MMpc, GNL 518.777 MMpc =
+  63 % del total exportado, todo consistente con lo publicado). Se corrigieron
+  dos errores de concordancia que recién aparecieron con datos reales ("las
+  últimas 3 meses", "En los últimos 52 semanas"). Después Pedro pidió, por
+  audio, "un botón en el panel donde pongamos qué queremos traer: en vez de
+  automático, yo aprieto traer exportaciones de Estados Unidos y me genera el
+  reporte". Hecho: pantalla `/admin/datos` (`templates/admin_datos.html`, link
+  "Datos EIA" en la barra del panel) con las series agrupadas por tema (campo
+  `grupo` nuevo en series.py), lo guardado de cada una, link a la página de la
+  EIA, y el botón. Dos casillas: "el borrador con todas las series guardadas"
+  (trae solo lo marcado pero el post incluye el resto) y "bajar el histórico
+  entero". La ruta NO hace el trabajo: crea una fila en la tabla `tareas`
+  (nueva, en la base histórica) y larga un hilo con `semanal.correr_tarea()`;
+  el avance se guarda en la base, no en memoria del proceso, para que la
+  página lo lea aunque gunicorn tenga varios workers; la página se recarga
+  sola cada 2,5 s mientras trabaja y al terminar ofrece "Abrir el borrador →".
+  Una búsqueda por vez (una tarea colgada >10 min se da por perdida). Captura
+  **incremental**: de una serie ya guardada se re-pide solo el último año
+  (`retroceder_un_anio`), que es donde la EIA revisa — bajó la corrida de ~19 s
+  a ~3 s por serie y es lo que hace tolerable apretar el botón. `--completo`
+  fuerza el histórico entero. `correr()` quedó con `claves` (qué se trae) y
+  `claves_informe` (qué va en el borrador) separados, con centinela
+  `LAS_TRAIDAS` porque `None` ya significaba "todas" y un `or` las pisaba (bug
+  encontrado por el test). Tests: 95 chequeos en `datos/test_datos.py`
+  (incluidos los de la pantalla y el botón, con la bajada de la EIA
+  reemplazada por datos inventados); `test_app.py` sigue en 161. Verificado
+  además apretando el botón en el navegador real contra el servidor local.
+  Después Pedro confirmó que lo de "la info de ese reporte que hizo Estados
+  Unidos" era el **texto** de los informes de la EIA: `datos/publicaciones.py`.
+  Antes de escribir nada se revisó cuáles siguen vivas, y el hallazgo importa:
+  el **Natural Gas Weekly Update** está congelado en enero de 2026 y **This
+  Week in Petroleum**, en octubre de 2025 — las páginas siguen online, así que
+  leerlas daría texto viejo con cara de nuevo (el problema de "información
+  desactualizada" de Luciano, confirmado con evidencia). Quedaron las dos al
+  día: **Today in Energy** (RSS, casi diario) y el **STEO** (mensual; se leen
+  los <li><strong>tema</strong> de su portada buscando el encabezado "Forecast
+  overview", no una posición fija: si cambia el diseño la sección queda afuera
+  con aviso en vez de traer cualquier cosa). Van al final del borrador como
+  citas cortas, entrecomilladas, con fecha y link, bajo un callout que aclara
+  que son de la EIA y no del Instituto (dominio público por ser agencia
+  federal de EE.UU.; la marca es editorial, no legal), un bloque por cita para
+  poder borrarlas de a una. Casilla "sumar lo que publicó la EIA" en el panel
+  (marcada por defecto) y `--sin-publicaciones` en el script. Bug encontrado
+  por el test: los cuatro puntos del STEO comparten el link de la portada, así
+  que usar el link como clave primaria hacía que se pisaran entre sí y se
+  guardara solo el último; la tabla `publicaciones` pasó a tener clave propia
+  (fuente|fecha|título) con migración que la rehace. Tests: 116.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

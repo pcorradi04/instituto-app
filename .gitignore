@@ -5,3 +5,8 @@ venv/
 .env
 # La base de datos es contenido real, no código: no va al repo.
 instance/
+# La base histórica de datos capturados y el log del automático: se generan
+# donde corre el script (ver datos/README.md), no van al repo.
+datos/datos.db
+datos/demo.db
+datos/semanal.log

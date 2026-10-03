@@ -1531,6 +1531,91 @@ def admin_delete_user(user_id):
 
 
 # ---------------------------------------------------------------------------
+# Panel de datos: traer series de la EIA y armar el borrador apretando un botón
+# ---------------------------------------------------------------------------
+# Todo el trabajo de verdad vive en la carpeta datos/ (ver datos/README.md).
+# Acá solo está la pantalla: qué series hay, qué tenemos guardado de cada una
+# y el botón. Las importaciones son adentro de la función a propósito: si
+# algún día se saca la carpeta datos/, el blog sigue arrancando igual.
+
+def _datos_modulos():
+    from datos import almacen as d_almacen, semanal as d_semanal, series as d_series
+    return d_almacen, d_semanal, d_series
+
+
+@app.route("/admin/datos")
+@login_required
+def admin_datos():
+    d_almacen, _, d_series = _datos_modulos()
+    db = d_almacen.conectar()
+    try:
+        guardado = {r["clave"]: r for r in d_almacen.resumen(db)}
+        tarea = d_almacen.tarea_ultima(db)
+        trabajando = bool(d_almacen.tarea_trabajando(db))
+        if trabajando:                      # releer: tarea_trabajando puede marcarla colgada
+            tarea = d_almacen.tarea_ultima(db)
+        revisiones = d_almacen.ultimas_revisiones(db, 12)
+    finally:
+        db.close()
+    # Las series agrupadas por tema, que es como se eligen ("exportaciones de
+    # Estados Unidos"). El orden de los grupos sale del orden de series.py.
+    grupos = []
+    for clave in d_series.ORDEN:
+        d = d_series.SERIES[clave]
+        nombre = d.get("grupo", "Otras series")
+        if not grupos or grupos[-1][0] != nombre:
+            grupos.append((nombre, []))
+        grupos[-1][1].append((clave, d, guardado.get(clave)))
+    post = None
+    if tarea and tarea["post_id"]:
+        post = get_db().execute("SELECT id, title, slug, status FROM posts WHERE id = ?",
+                                (tarea["post_id"],)).fetchone()
+    return render_template(
+        "admin_datos.html", grupos=grupos, tarea=tarea, trabajando=trabajando,
+        revisiones=revisiones, post=post, nombres={k: v["corto"] for k, v in d_series.SERIES.items()},
+        hay_clave=bool((os.environ.get("EIA_API_KEY") or "").strip()),
+    )
+
+
+@app.route("/admin/datos/traer", methods=["POST"])
+@login_required
+def admin_datos_traer():
+    """Larga la captura en un hilo aparte y vuelve a la página, que muestra el
+    avance. En un hilo porque bajar varias series puede tardar unos segundos y
+    no hay que dejar colgado al servidor esperando a la EIA."""
+    d_almacen, d_semanal, d_series = _datos_modulos()
+    claves = [c for c in request.form.getlist("series") if c in d_series.SERIES]
+    if not claves:
+        flash("Elegí al menos una serie para traer.", "error")
+        return redirect(url_for("admin_datos"))
+    if not (os.environ.get("EIA_API_KEY") or "").strip():
+        flash("Falta la clave de la EIA (EIA_API_KEY en el .env). Ver datos/README.md.", "error")
+        return redirect(url_for("admin_datos"))
+    completo = request.form.get("completo") == "1"
+    # "El borrador con todo": se traen de la EIA solo las series marcadas, pero
+    # el post incluye todas las que ya tengamos guardadas.
+    claves_informe = None if request.form.get("todas") == "1" else list(claves)
+    con_publicaciones = request.form.get("publicaciones") == "1"
+    db = d_almacen.conectar()
+    try:
+        if d_almacen.tarea_trabajando(db):
+            flash("Ya hay una búsqueda en curso: esperá a que termine.", "error")
+            return redirect(url_for("admin_datos"))
+        tarea_id = d_almacen.tarea_crear(db, claves, quien=session.get("user_initials", ""))
+    finally:
+        db.close()
+    threading.Thread(
+        target=d_semanal.correr_tarea,
+        kwargs={"tarea_id": tarea_id, "claves": claves, "db_blog": DB_PATH,
+                "completo": completo, "claves_informe": claves_informe,
+                "con_publicaciones": con_publicaciones},
+        daemon=True,
+    ).start()
+    flash(f"Trayendo {len(claves)} serie{'s' if len(claves) > 1 else ''} de la EIA...", "ok")
+    return redirect(url_for("admin_datos"))
+
+
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     init_db()
     port = int(os.environ.get("PORT", 5000))

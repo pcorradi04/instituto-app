@@ -17,6 +17,16 @@ src = sqlite3.connect(sys.argv[1]); dst = sqlite3.connect(sys.argv[2])
 src.backup(dst); dst.close(); src.close()
 PY
 cp -r "$DIR/instance/uploads" "$TMP/uploads" 2>/dev/null || mkdir -p "$TMP/uploads"
+# La base histórica de datos capturados de la EIA (datos/README.md): es
+# nuestra copia de las series, con el registro de revisiones. Si no existe
+# (nunca se corrió el automático) no pasa nada.
+if [ -f "$DIR/datos/datos.db" ]; then
+  "$DIR/venv/bin/python" - "$DIR/datos/datos.db" "$TMP/datos.db" <<'PY'
+import sqlite3, sys
+src = sqlite3.connect(sys.argv[1]); dst = sqlite3.connect(sys.argv[2])
+src.backup(dst); dst.close(); src.close()
+PY
+fi
 tar -czf "$DEST/blog-$(date +%F).tar.gz" -C "$TMP" .
 rm -rf "$TMP"
 ls -1t "$DEST"/blog-*.tar.gz | tail -n +31 | xargs -r rm -f

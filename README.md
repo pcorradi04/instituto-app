@@ -318,6 +318,34 @@ carga en el editor, en la línea "Por ...") y, al final del texto, los logos
 de X, LinkedIn y WhatsApp para compartirlo, más un botón "Copiar link". Son
 links simples, sin rastreo.
 
+## 2c. Datos de la EIA: traerlos con un botón (o solos cada semana)
+
+En el panel hay una pantalla **Datos EIA**: están las series que seguimos con
+un casillero cada una, se marca lo que se quiere y se aprieta *Traer datos y
+armar el borrador*. Baja de la EIA hasta el último dato publicado y deja un
+borrador en Posts con un gráfico y un párrafo de números por serie. Tarda unos
+segundos y la página va mostrando el avance.
+
+El borrador cierra con lo que la EIA **escribió** (sus artículos *Today in
+Energy* y su informe mensual de perspectivas), citado en inglés con fecha y
+link, como material para quien redacte. Va marcado como cita, no como texto
+del Instituto.
+
+Lo mismo puede correr solo una vez por semana, sin que nadie abra nada: el blog
+se deja a sí mismo un **borrador** con los últimos datos de la EIA (exportaciones de propano, de gas
+natural y de GNL, y producción de crudo de Estados Unidos): un gráfico y un
+párrafo de números por serie. No publica nada: queda en el panel para que el
+equipo escriba el análisis y lo publique a mano.
+
+Los datos se guardan además en una base histórica propia, así que si la EIA
+cambia una ruta o se cae, lo capturado sigue siendo nuestro; y como en cada
+corrida se compara con lo guardado, las **revisiones** de datos ya publicados
+quedan registradas y avisadas en el borrador.
+
+Hace falta una clave gratuita de la EIA (`EIA_API_KEY` en el `.env`). Todo el
+detalle —puesta en marcha, cómo agregar series, cómo programarlo en Windows o
+con cron en el servidor— está en **`datos/README.md`**.
+
 ## 3. Estructura del proyecto
 
 ```
@@ -332,6 +360,10 @@ instituto-app/
 ├── instance/            → TODO el contenido del sitio vive acá (no va a git; hacé backup)
 │   ├── instituto.db     → la base de datos (se crea sola)
 │   └── uploads/         → las imágenes subidas desde el panel
+├── datos/               → captura automática de datos y borrador semanal (ver datos/README.md)
+│   ├── series.py        → qué series se siguen (el único archivo que se toca para sumar una)
+│   ├── semanal.py       → el programa que corre una vez por semana
+│   └── datos.db         → la base histórica de lo capturado (no va a git; hacé backup)
 ├── static/
 │   ├── style.css        → el sistema de diseño del sitio público (el que ya conocés)
 │   ├── admin.css         → estilos del panel y del editor visual

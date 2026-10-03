@@ -11,7 +11,7 @@
 <body class="admin">
 <div class="admin-bar">
   <div><b>Instituto de Energía</b> — Estadísticas de lectura</div>
-  <div><a href="{{ url_for('admin_stats', dias=days) }}">← Todas las estadísticas</a><a href="{{ url_for('admin_dashboard') }}">Posts</a><a href="{{ url_for('admin_logout') }}">Salir</a></div>
+  <div><a href="{{ url_for('admin_stats', dias=days) }}">← Todas las estadísticas</a><a href="{{ url_for('admin_dashboard') }}">Posts</a><a href="{{ url_for('admin_datos') }}">Datos EIA</a><a href="{{ url_for('admin_logout') }}">Salir</a></div>
 </div>
 <div class="admin-wrap">
   <h1>{% if post['post_number'] %}<span class="stats-num">{{ post['post_number'] }}</span> {% endif %}{{ post['title'] }}</h1>
