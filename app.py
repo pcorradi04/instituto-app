@@ -26,6 +26,8 @@ import threading
 from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
 from functools import wraps
+import hashlib
+from urllib.parse import urlparse
 
 from flask import (
     Flask, request, session, redirect, url_for, render_template,
@@ -288,6 +290,19 @@ def init_db():
         ip TEXT DEFAULT '',
         created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS pageviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id INTEGER,                 -- NULL = portada
+        ts TEXT NOT NULL,
+        day TEXT NOT NULL,
+        vid TEXT NOT NULL,               -- visitante: hash del día (no se guarda la IP)
+        ref TEXT NOT NULL DEFAULT '',    -- sitio de donde vino (solo el dominio)
+        device TEXT NOT NULL DEFAULT '', -- celular / compu
+        secs INTEGER NOT NULL DEFAULT 0, -- segundos con la página visible
+        scroll INTEGER NOT NULL DEFAULT 0 -- hasta qué % de la página llegó
+    );
+    CREATE INDEX IF NOT EXISTS ix_pageviews_post_day ON pageviews(post_id, day);
+    CREATE INDEX IF NOT EXISTS ix_pageviews_ts ON pageviews(ts);
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         initials TEXT UNIQUE NOT NULL,
@@ -558,6 +573,120 @@ def excerpt_for(db, post, limit=230):
     if len(text) <= limit:
         return text
     return text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:.") + "…"
+
+
+# ---------------------------------------------------------------------------
+# Estadísticas de lectura, propias y sin cookies. Cada visita de un lector
+# (no de quien está logueado en el panel, no de robots) es una fila en
+# pageviews. El visitante se identifica con un hash del día + IP + navegador
+# que no se puede revertir y cambia cada día: sirve para contar "personas
+# distintas por día" sin guardar la IP ni seguir a nadie. El tiempo de
+# lectura y hasta dónde llegó los manda el navegador al irse (ruta /t).
+# ---------------------------------------------------------------------------
+ANALYTICS = os.environ.get("ANALYTICS", "1") == "1"
+BOT_RE = re.compile(r"bot|crawl|spider|slurp|preview|fetch|monitor|curl|wget|python-requests|headless", re.IGNORECASE)
+
+
+def record_view(db, post_id):
+    """Registra la visita y devuelve su id (para el aviso del navegador), o
+    None si no se cuenta (panel logueado, robot, estadísticas apagadas)."""
+    if not ANALYTICS or session.get("is_admin"):
+        return None
+    ua = request.headers.get("User-Agent", "")
+    if not ua or BOT_RE.search(ua):
+        return None
+    now = datetime.now(timezone.utc)
+    day = now.date().isoformat()
+    vid = hashlib.sha256(f"{app.secret_key}|{day}|{client_ip()}|{ua}".encode()).hexdigest()[:16]
+    ref = ""
+    if request.referrer:
+        host = (urlparse(request.referrer).hostname or "").lower()
+        if host and host != request.host.split(":")[0].lower():
+            ref = host[4:] if host.startswith("www.") else host
+    device = "celular" if re.search(r"Mobi|Android", ua) else "compu"
+    cur = db.execute(
+        "INSERT INTO pageviews (post_id, ts, day, vid, ref, device) VALUES (?, ?, ?, ?, ?, ?)",
+        (post_id, now.isoformat(), day, vid, ref[:80], device),
+    )
+    if secrets.randbelow(200) == 0:   # cada tanto, borrar lo de más de 400 días
+        db.execute("DELETE FROM pageviews WHERE ts < ?", ((now - timedelta(days=400)).isoformat(),))
+    db.commit()
+    return cur.lastrowid
+
+
+@app.route("/t", methods=["POST"])
+def track():
+    """El navegador avisa cuánto tiempo estuvo visible la página y hasta qué
+    porcentaje bajó. Solo actualiza visitas de las últimas 48 horas y se
+    queda con el máximo (puede llegar más de un aviso)."""
+    try:
+        data = json.loads(request.get_data(as_text=True) or "{}")
+        pv_id = int(data.get("id"))
+        secs = max(0, min(int(data.get("secs", 0)), 1800))
+        scroll = max(0, min(int(data.get("scroll", 0)), 100))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return "", 204
+    since = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+    db = get_db()
+    db.execute("UPDATE pageviews SET secs = MAX(secs, ?), scroll = MAX(scroll, ?) WHERE id = ? AND ts >= ?",
+               (secs, scroll, pv_id, since))
+    db.commit()
+    return "", 204
+
+
+@app.template_filter("dur")
+def fmt_duration(secs):
+    """Segundos -> '1 min 20 s', '45 s' o '–'."""
+    if not secs:
+        return "–"
+    secs = int(round(secs))
+    return f"{secs // 60} min {secs % 60:02d} s" if secs >= 60 else f"{secs} s"
+
+
+def stats_for(db, days):
+    """Todo lo que muestra la página de estadísticas, para los últimos `days` días."""
+    now = datetime.now(timezone.utc)
+    since = (now - timedelta(days=days)).isoformat()
+    tot = db.execute(
+        "SELECT COUNT(*) AS views, COUNT(DISTINCT day || vid) AS uniq, "
+        "SUM(CASE WHEN secs > 0 OR scroll > 0 THEN 1 ELSE 0 END) AS measured, "
+        "SUM(CASE WHEN scroll >= 70 THEN 1 ELSE 0 END) AS read_through "
+        "FROM pageviews WHERE ts >= ?", (since,)).fetchone()
+    secs_list = sorted(r[0] for r in db.execute("SELECT secs FROM pageviews WHERE ts >= ? AND secs > 0", (since,)))
+    median = secs_list[len(secs_list) // 2] if secs_list else 0
+    # Serie diaria completa (los días sin visitas van en cero).
+    by_day = {r["day"]: r for r in db.execute(
+        "SELECT day, COUNT(*) AS v, COUNT(DISTINCT vid) AS u FROM pageviews WHERE ts >= ? GROUP BY day", (since,))}
+    labels, views, uniques = [], [], []
+    for i in range(days - 1, -1, -1):
+        d = (now - timedelta(days=i)).date().isoformat()
+        labels.append(d); views.append(by_day[d]["v"] if d in by_day else 0); uniques.append(by_day[d]["u"] if d in by_day else 0)
+    posts = db.execute(
+        "SELECT p.id, p.title, p.slug, p.post_number, COUNT(v.id) AS views, COUNT(DISTINCT v.day || v.vid) AS uniq, "
+        "AVG(CASE WHEN v.secs > 0 THEN v.secs END) AS avg_secs, "
+        "SUM(CASE WHEN v.scroll >= 70 THEN 1 ELSE 0 END) AS read_through, "
+        "SUM(CASE WHEN v.secs > 0 OR v.scroll > 0 THEN 1 ELSE 0 END) AS measured, "
+        "(SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'approved') AS comments "
+        "FROM posts p LEFT JOIN pageviews v ON v.post_id = p.id AND v.ts >= ? "
+        "WHERE p.status = 'published' GROUP BY p.id ORDER BY views DESC, p.post_number DESC", (since,)).fetchall()
+    home = db.execute("SELECT COUNT(*) AS views, COUNT(DISTINCT day || vid) AS uniq FROM pageviews WHERE post_id IS NULL AND ts >= ?", (since,)).fetchone()
+    refs = db.execute("SELECT ref, COUNT(*) AS n FROM pageviews WHERE ts >= ? AND ref != '' GROUP BY ref ORDER BY n DESC LIMIT 10", (since,)).fetchall()
+    devices = db.execute("SELECT device, COUNT(*) AS n FROM pageviews WHERE ts >= ? GROUP BY device", (since,)).fetchall()
+    return {
+        "days": days, "views": tot["views"], "uniq": tot["uniq"], "median_secs": median,
+        "read_pct": round(100 * tot["read_through"] / tot["measured"]) if tot["measured"] else None,
+        "series": {"labels": labels, "views": views, "uniques": uniques},
+        "posts": posts, "home": home, "refs": refs,
+        "devices": {r["device"]: r["n"] for r in devices},
+    }
+
+
+@app.route("/admin/estadisticas")
+@login_required
+def admin_stats():
+    days = request.args.get("dias", "30")
+    days = int(days) if days in ("7", "30", "90", "365") else 30
+    return render_template("admin_stats.html", s=stats_for(get_db(), days))
 
 
 def comment_counts(db):
@@ -840,7 +969,8 @@ def index():
         ).fetchall()
     return render_template("index.html", posts=posts, q=q, comment_counts=comment_counts(db),
                            excerpts={p["id"]: excerpt_for(db, p) for p in posts},
-                           accents_hex={k: v["hex"] for k, v in ACCENTS.items()})
+                           accents_hex={k: v["hex"] for k, v in ACCENTS.items()},
+                           pv_id=record_view(db, None) if not q else None)
 
 
 @app.route("/post/<slug>")
@@ -889,6 +1019,7 @@ def show_post(slug):
         comments=comments, n_comments=n_comments, staff_name=STAFF_NAME,
         commenter_name=session.get("commenter_name", ""), moderation=COMMENTS_MODERATION,
         hold_links=COMMENTS_HOLD_LINKS,
+        pv_id=record_view(db, post["id"]) if post["status"] == "published" else None,
     )
 
 

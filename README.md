@@ -209,6 +209,31 @@ dos cosas:
 Se le pone el alto en píxeles y un epígrafe opcional; en el editor se ve
 la misma vista previa que va a ver el lector.
 
+## 2a-bis. Estadísticas de lectura
+
+En el panel, "Estadísticas" muestra, para 7, 30, 90 o 365 días: visitas
+totales, lectores distintos, tiempo de lectura típico y qué porcentaje
+llegó al final; un gráfico de visitas por día; una tabla por post (visitas,
+lectores, tiempo medio, % que llegó al final, comentarios) más la portada;
+de qué sitios llegan los lectores; y computadora vs. celular.
+
+Cómo funciona, porque importa para la privacidad: la medición es **propia
+de la app, sin Google ni ningún servicio externo y sin cookies**. Cada vez
+que un lector abre un post se guarda una fila con la fecha, el post, el
+dominio de origen si el navegador lo informa, el tipo de dispositivo, y un
+código de visitante que es un hash (una huella no reversible) del día + IP
++ navegador: sirve para no contar dos veces a la misma persona en el día,
+pero no se guarda la IP y el código cambia cada día, así que no se sigue a
+nadie. Al irse de la página, el navegador avisa cuántos segundos estuvo
+visible (tope 30 minutos) y hasta qué porcentaje bajó. No se cuentan las
+visitas de quien está logueado en el panel ni las de robots de buscadores.
+Por todo esto no hace falta cartel de cookies. Los datos se conservan 400
+días. Se apaga con `ANALYTICS=0` en el `.env`.
+
+Si algún día necesitan análisis de marketing más finos (embudos, campañas,
+demografía), lo razonable es sumar Google Analytics o Plausible con una
+etiqueta en `base.html`; conviven sin problema con esto.
+
 ## 2b. Comentarios de lectores
 
 Cada post publicado tiene al pie una sección de comentarios. Cualquier

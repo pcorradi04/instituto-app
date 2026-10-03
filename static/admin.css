@@ -184,3 +184,18 @@ body.editor{background:var(--page-bg); font-family:Georgia,'Times New Roman',ser
 .add-bar button b{font-weight:700;}
 .add-bar button small{font-family:Georgia,serif; font-style:italic; font-size:11px; color:var(--ink-soft);}
 .add-bar button:hover{border-color:var(--accent, var(--blue)); color:var(--accent, var(--blue));}
+
+/* estadísticas de lectura */
+.stats-period{font-size:13px; color:var(--ink-soft); margin:-8px 0 18px;}
+.stat-tiles{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:16px;}
+.stat-tile{background:#fff; border:1px solid var(--line); padding:16px 18px;}
+.stat-tile b{display:block; font-family:Georgia,serif; font-size:30px; line-height:1.1; color:var(--blue);}
+.stat-tile span{display:block; font-size:11.5px; color:var(--ink-soft); margin-top:6px; line-height:1.35;}
+.stats-h2{font-family:Georgia,serif; font-size:17px; margin:18px 0 10px;}
+.admin-card .stats-h2{margin-top:0;}
+.stats-chart{height:260px;}
+.stats-num{display:inline-block; background:var(--blue); color:#fff; font-size:11px; font-weight:700; padding:2px 7px; margin-right:4px;}
+.stats-home td{color:var(--ink-soft); font-style:italic;}
+.stats-cols{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;}
+.stats-note{font-family:Georgia,serif; font-style:italic; font-size:12px; color:var(--ink-soft); line-height:1.5; margin:10px 0 0;}
+@media (max-width:700px){ .stats-cols{grid-template-columns:1fr;} }

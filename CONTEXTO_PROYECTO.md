@@ -649,6 +649,30 @@ entre turnos. Estado al cierre de esa ronda:
   zip (PythonAnywhere Files → scp -P 5464), apagar la copia vieja.
   `.gitattributes`: `*.sh eol=lf`. Yo no entro al servidor: la clave es de
   Pedro; él pega los comandos.
+- **30 sep – 2 oct 2026 (commits de Pedro, no míos)**: "Cuentas
+  individuales para el panel admin" (tabla `users`: initials, full_name,
+  password_hash, role superadmin/editor, is_active; login con iniciales +
+  clave; el superadmin inicial sale de ADMIN_PASSWORD + ADMIN_INITIALS
+  (default "AD"); `session["user_id"]`, `login_required` mira user_id,
+  `session["is_admin"]` se sigue seteando; /admin/usuarios) y "Logo enlaza
+  al sitio del IE". Dejaron el test roto (login sin iniciales): el 3 oct lo
+  adapté (`data={"initials": "AD", ...}`, mensaje "Usuario o contraseña
+  incorrectos"). `make_session_cookie.py` del scratchpad ahora setea
+  user_id/initials/role.
+- **3 oct 2026** — Pedro: "¿puedo saber cuánta gente entró a cada post y
+  cuánto tiempo estuvo?". Estadísticas propias, sin cookies ni servicio
+  externo: tabla `pageviews` (post_id NULL = portada, ts, day, vid = sha256
+  (secret|día|ip|UA)[:16], ref = dominio de origen sin www, device
+  celular/compu, secs, scroll); `record_view()` en index (no en búsquedas)
+  y en show_post publicados, salvo sesión admin o UA de robot (BOT_RE);
+  poda >400 días al azar (1/200). Beacon en base.html (`pv_id`): tiempo con
+  la pestaña visible, scroll máximo, sendBeacon al ocultarse/pagehide y
+  cada 30 s → `POST /t` (MAX de secs/scroll, solo visitas de <48 h, errores
+  → 204). Página `/admin/estadisticas?dias=7|30|90|365` (`stats_for`):
+  tiles (visitas, lectores distintos = day||vid, mediana de secs, % que
+  bajó ≥70 %), serie diaria con charts.js tipo line, tabla por post (+
+  portada), orígenes top 10, dispositivos, nota metodológica; filtro Jinja
+  `dur`. `ANALYTICS=0` apaga. README 2a-bis. Tests: 161.
 - **Git**: repo inicializado en la carpeta del proyecto con identidad local
   (Pedro Corradi / pcorradi04@gmail.com). Sin remoto todavía: el repo en
   GitHub lo crea Pedro (paso 0 de `DEPLOY.md`). `gh` no está instalado.

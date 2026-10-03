@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estadísticas — Instituto de Energía</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='charts.js') }}"></script>
+</head>
+<body class="admin">
+<div class="admin-bar">
+  <div><b>Instituto de Energía</b> — Estadísticas de lectura</div>
+  <div><a href="{{ url_for('admin_dashboard') }}">Posts</a><a href="{{ url_for('admin_comments') }}">Comentarios</a><a href="{{ url_for('index') }}" target="_blank">Ver sitio ↗</a><span style="color:var(--ink-soft);padding:0 8px;">{{ current_user_initials }}</span><a href="{{ url_for('admin_logout') }}">Salir</a></div>
+</div>
+<div class="admin-wrap">
+  <h1>Estadísticas</h1>
+  <p class="stats-period">Período:
+    {% for d, lab in [(7, '7 días'), (30, '30 días'), (90, '90 días'), (365, 'un año')] %}
+      {% if d == s.days %}<b>{{ lab }}</b>{% else %}<a href="{{ url_for('admin_stats', dias=d) }}">{{ lab }}</a>{% endif %}{{ ' · ' if not loop.last }}
+    {% endfor %}
+  </p>
+
+  <div class="stat-tiles">
+    <div class="stat-tile"><b>{{ s.views }}</b><span>visitas a posts y portada</span></div>
+    <div class="stat-tile"><b>{{ s.uniq }}</b><span>lectores distintos (por día)</span></div>
+    <div class="stat-tile"><b>{{ s.median_secs | dur }}</b><span>tiempo de lectura típico (mediana)</span></div>
+    <div class="stat-tile"><b>{{ s.read_pct ~ ' %' if s.read_pct is not none else '–' }}</b><span>llegaron al final (bajaron más del 70 %)</span></div>
+  </div>
+
+  <div class="admin-card">
+    <h2 class="stats-h2">Visitas por día</h2>
+    <div class="chart-wrap stats-chart" id="statsChart"></div>
+  </div>
+
+  <h2 class="stats-h2">Por post</h2>
+  <table class="admin-table">
+    <thead><tr><th>Post</th><th>Visitas</th><th>Lectores</th><th>Tiempo medio</th><th>Llegaron al final</th><th>Comentarios</th></tr></thead>
+    <tbody>
+      {% for p in s.posts %}
+      <tr>
+        <td>{% if p['post_number'] %}<span class="stats-num">{{ p['post_number'] }}</span> {% endif %}<a href="{{ url_for('show_post', slug=p['slug']) }}" target="_blank">{{ p['title'] }}</a></td>
+        <td>{{ p['views'] }}</td>
+        <td>{{ p['uniq'] }}</td>
+        <td>{{ p['avg_secs'] | dur }}</td>
+        <td>{{ (100 * p['read_through'] / p['measured']) | round | int ~ ' %' if p['measured'] else '–' }}</td>
+        <td>{{ p['comments'] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Todavía no hay posts publicados.</td></tr>
+      {% endfor %}
+      <tr class="stats-home"><td>Portada</td><td>{{ s.home['views'] }}</td><td>{{ s.home['uniq'] }}</td><td colspan="3"></td></tr>
+    </tbody>
+  </table>
+
+  <div class="stats-cols">
+    <div class="admin-card">
+      <h2 class="stats-h2">De dónde llegan</h2>
+      {% if s.refs %}
+      <table class="admin-table"><tbody>
+        {% for r in s.refs %}<tr><td>{{ r['ref'] }}</td><td style="text-align:right">{{ r['n'] }}</td></tr>{% endfor %}
+      </tbody></table>
+      <p class="stats-note">Solo se cuenta el sitio de origen cuando el navegador lo informa (desde redes, otros sitios o buscadores). Las visitas directas, por mail o WhatsApp no traen origen.</p>
+      {% else %}<p class="stats-note">Todavía no hay visitas que vengan de otros sitios.</p>{% endif %}
+    </div>
+    <div class="admin-card">
+      <h2 class="stats-h2">Dispositivo</h2>
+      <table class="admin-table"><tbody>
+        <tr><td>Computadora</td><td style="text-align:right">{{ s.devices.get('compu', 0) }}</td></tr>
+        <tr><td>Celular o tablet</td><td style="text-align:right">{{ s.devices.get('celular', 0) }}</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+
+  <p class="stats-note">Cómo se mide: cada vez que un lector abre un post o la portada se cuenta una visita (no las de quienes están logueados en el panel, ni los robots de buscadores). "Lectores distintos" junta las visitas de una misma persona dentro del día. El tiempo de lectura es el que la pestaña estuvo visible, tope 30 minutos; "llegaron al final" es haber bajado al menos el 70 % de la página. No se usan cookies ni se guarda la dirección IP, así que no hace falta cartel de aviso. Los datos se conservan 400 días.</p>
+</div>
+<script>
+const S = {{ s.series | tojson }};
+renderPostChart(document.getElementById('statsChart'), {
+  chart_type: 'line', labels: S.labels, series: [S.views, S.uniques], series_names: ['Visitas', 'Lectores distintos'],
+  color: 'blue', colors: ['blue', 'orange'], options: { height: '260' },
+}, {}, { animate: false });
+</script>
+</body>
+</html>

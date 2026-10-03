@@ -28,6 +28,30 @@
 {% include "_footer.html" %}
 
 </div>
+{% if pv_id %}
+<script>
+// Estadísticas de lectura: al irse de la página (o cada 30 s), el navegador
+// avisa cuántos segundos estuvo visible y hasta qué % bajó. Sin cookies.
+(function () {
+  const id = {{ pv_id }}, url = "{{ url_for('track') }}";
+  let visible = 0, t0 = performance.now(), maxScroll = 0, lastSent = '';
+  const tick = () => { const now = performance.now(); if (document.visibilityState === 'visible') visible += now - t0; t0 = now; };
+  const onScroll = () => { const d = document.documentElement; const p = Math.round((window.scrollY + window.innerHeight) / Math.max(d.scrollHeight, 1) * 100); if (p > maxScroll) maxScroll = Math.min(100, p); };
+  const send = () => {
+    tick();
+    const body = JSON.stringify({ id, secs: Math.min(1800, Math.round(visible / 1000)), scroll: maxScroll });
+    if (body === lastSent) return;
+    lastSent = body;
+    if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+    else fetch(url, { method: 'POST', body, keepalive: true, headers: { 'Content-Type': 'application/json' } });
+  };
+  document.addEventListener('scroll', onScroll, { passive: true }); onScroll();
+  document.addEventListener('visibilitychange', () => { tick(); if (document.visibilityState === 'hidden') send(); });
+  window.addEventListener('pagehide', send);
+  setInterval(send, 30000);
+})();
+</script>
+{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

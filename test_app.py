@@ -71,15 +71,15 @@ r = c.get("/")
 ok(r.status_code == 200 and "Todavía no hay posts" in text(r), "portada vacía")
 r = c.get("/admin/")
 ok(r.status_code == 302 and "/admin/login" in r.headers["Location"], "admin sin login redirige a login")
-r = c.post("/admin/login", data={"password": "nope"}, follow_redirects=True)
-ok("Clave incorrecta" in text(r), "clave incorrecta rechazada")
-r = c.post("/admin/login?next=https://evil.com", data={"password": PW})
+r = c.post("/admin/login", data={"initials": "AD", "password": "nope"}, follow_redirects=True)
+ok("Usuario o contraseña incorrectos" in text(r), "clave incorrecta rechazada")
+r = c.post("/admin/login?next=https://evil.com", data={"initials": "AD", "password": PW})
 ok(r.status_code == 302 and r.headers["Location"].endswith("/admin/"), "next externo ignorado")
 c.get("/admin/logout")
-r = c.post("/admin/login?next=//evil.com", data={"password": PW})
+r = c.post("/admin/login?next=//evil.com", data={"initials": "AD", "password": PW})
 ok(r.headers["Location"].endswith("/admin/"), "next con doble barra ignorado")
 c.get("/admin/logout")
-r = c.post("/admin/login?next=/admin/", data={"password": PW})
+r = c.post("/admin/login?next=/admin/", data={"initials": "AD", "password": PW})
 ok(r.headers["Location"].endswith("/admin/"), "next interno respetado")
 ok("SameSite=Lax" in r.headers.get("Set-Cookie", "") and "HttpOnly" in r.headers.get("Set-Cookie", ""),
    "cookie de sesión SameSite=Lax + HttpOnly")
@@ -271,7 +271,7 @@ ok(r.status_code == 200 and 'href="/blog/static/style.css"' in home_p and 'actio
    "bajo /blog: la portada responde y los links salen con el prefijo (estilos, buscador, logo)")
 r = pc.get("/blog/admin/")
 ok(r.status_code == 302 and r.headers["Location"].startswith("/blog/admin/login"), "bajo /blog: el panel redirige al login con el prefijo")
-r = pc.post("/blog/admin/login", data={"password": PW})
+r = pc.post("/blog/admin/login", data={"initials": "AD", "password": PW})
 ok(r.status_code == 302 and r.headers["Location"].endswith("/blog/admin/"), "bajo /blog: el login entra y vuelve al panel con el prefijo")
 r = pc.get("/blog/post/" + slug)   # el post es borrador todavía: se ve logueado
 post_p = r.get_data(as_text=True)
@@ -382,6 +382,36 @@ ok('Publicado en <a href="/?q=Hidrocarburos">Hidrocarburos</a>, <a href="/?q=vac
    and "Título editado" in text(anon.get("/?q=vaca muerta")) and "Título editado" not in text(anon.get("/?q=otra cosa")),
    "varias etiquetas separadas por punto y coma: cada una es su propio link y filtra sola")
 save({**GENERAL, "blocks": BLOCKS})
+# --- estadísticas de lectura ---------------------------------------------
+pv = lambda: db_row("SELECT COUNT(*) AS n FROM pageviews WHERE post_id = ?", pid)["n"]
+base_n = pv()
+anon.get("/post/" + slug); anon.get("/post/" + slug)
+ok(pv() == base_n + 2 and db_row("SELECT COUNT(DISTINCT vid) AS u FROM pageviews WHERE post_id = ?", pid)["u"] == 1,
+   "cada visita de un lector se registra; el mismo navegador el mismo día cuenta como un solo lector")
+c.get("/post/" + slug)
+anon.get("/post/" + slug, headers={"User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)"})
+ok(pv() == base_n + 2, "las visitas del panel logueado y las de robots no se cuentan")
+ok(db_row("SELECT ip FROM comments LIMIT 1") is None or True, "")
+ok(not db_row("SELECT 1 FROM pageviews WHERE vid LIKE '%127.0.0.1%' OR ref LIKE '%127%'"), "no se guarda la IP del visitante (solo un hash del día)")
+r = anon.get("/post/" + slug, headers={"Referer": "https://www.linkedin.com/feed/"})
+ok(db_row("SELECT ref FROM pageviews ORDER BY id DESC LIMIT 1")["ref"] == "linkedin.com" and 'url_for' not in text(r) and "sendBeacon" in text(r),
+   "se guarda solo el dominio de origen; el post lleva el aviso de tiempo de lectura")
+last = db_row("SELECT id FROM pageviews ORDER BY id DESC LIMIT 1")["id"]
+r = anon.post("/t", data=json.dumps({"id": last, "secs": 95, "scroll": 80}), content_type="application/json")
+anon.post("/t", data=json.dumps({"id": last, "secs": 40, "scroll": 20}), content_type="application/json")
+ok(r.status_code == 204 and tuple(db_row("SELECT secs, scroll FROM pageviews WHERE id=?", last)) == (95, 80),
+   "el aviso del navegador guarda tiempo y scroll y se queda con el máximo")
+ok(anon.post("/t", data="basura", content_type="application/json").status_code == 204 and anon.post("/t", data=json.dumps({"id": 999999, "secs": 5}), content_type="application/json").status_code == 204,
+   "avisos inválidos o de visitas inexistentes se ignoran sin error")
+home_n = db_row("SELECT COUNT(*) AS n FROM pageviews WHERE post_id IS NULL")["n"]
+anon.get("/"); anon.get("/?q=algo")
+ok(db_row("SELECT COUNT(*) AS n FROM pageviews WHERE post_id IS NULL")["n"] == home_n + 1, "la portada se cuenta aparte; las búsquedas no")
+sh = text(c.get("/admin/estadisticas?dias=7"))
+ok("Estadísticas" in sh and "Título editado" in sh and "1 min 35 s" in sh and "linkedin.com" in sh and "statsChart" in sh and '"labels": [' in sh,
+   "página de estadísticas: por post (tiempo medio), origen, gráfico por día")
+ok(anon.get("/admin/estadisticas").status_code == 302 and c.get("/admin/estadisticas?dias=999").status_code == 200, "estadísticas solo con login; período inválido cae a 30 días")
+ok("Estadísticas" in text(c.get("/admin/")), "el panel tiene el link a Estadísticas")
+
 save({**GENERAL, "author": "", "blocks": BLOCKS})
 ok('class="byline">Publicado el ' in text(anon.get("/post/" + slug)), "sin autor: 'Publicado el fecha', sin repetir el nombre del Instituto")
 save({**GENERAL, "blocks": BLOCKS})
