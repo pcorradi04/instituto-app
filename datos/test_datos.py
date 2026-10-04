@@ -432,6 +432,22 @@ try:
 finally:
     pubs._bajar = _bajar_real
 
+bloques = informe.armar_bloques(
+    [{"clave": "gas_exp_usa", "definicion": registro.SERIES["gas_exp_usa"],
+      "datos": datos, "stats": informe.analizar(datos, registro.SERIES["gas_exp_usa"]),
+      "revisiones": []}],
+    publicaciones=[], fallas_publicaciones=[("tie", "no se pudo salir a internet")])
+avisos = [d["text"] for t, d in bloques if t == "callout"]
+check(any("No se pudo leer lo que publicó la EIA" in a for a in avisos),
+      "si no se pudieron traer las citas, el borrador lo dice")
+check(any("no se pudo salir a internet" in a for a in avisos), "y dice por qué")
+bloques_ok = informe.armar_bloques(
+    [{"clave": "gas_exp_usa", "definicion": registro.SERIES["gas_exp_usa"],
+      "datos": datos, "stats": informe.analizar(datos, registro.SERIES["gas_exp_usa"]),
+      "revisiones": []}], publicaciones=[], fallas_publicaciones=[])
+check(not any("No se pudo leer" in d["text"] for t, d in bloques_ok if t == "callout"),
+      "sin fallas no aparece el aviso")
+
 check(pubs.recortar("a" * 400, 100).endswith("…"), "las citas largas se recortan y se marca")
 check(pubs.recortar("corta") == "corta", "las citas cortas quedan enteras")
 check(pubs._fecha("cualquier cosa") == "cualquier cosa", "una fecha rara no se inventa")

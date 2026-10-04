@@ -265,7 +265,7 @@ def bloques_publicaciones(publicaciones):
     return bloques
 
 
-def armar_bloques(resultados, hoy=None, con_fallas=(), publicaciones=()):
+def armar_bloques(resultados, hoy=None, con_fallas=(), publicaciones=(), fallas_publicaciones=()):
     """Todos los bloques del informe. `resultados` = lista de dicts con
     clave/definicion/datos/stats/revisiones (los arma semanal.py)."""
     hoy = hoy or datetime.now(timezone.utc) - timedelta(hours=3)
@@ -293,6 +293,15 @@ def armar_bloques(resultados, hoy=None, con_fallas=(), publicaciones=()):
                                    r["stats"], r["revisiones"])
 
     bloques += bloques_publicaciones(publicaciones)
+    if fallas_publicaciones and not publicaciones:
+        bloques.append(("callout", {
+            "color": "orange",
+            "text": ("**No se pudo leer lo que publicó la EIA en esta corrida.** " +
+                     " ".join(f"{clave}: {motivo}" for clave, motivo in fallas_publicaciones) +
+                     " Las series de números sí están: lo que falta es la sección de citas. "
+                     "Si el blog corre en un hosting que restringe la salida a internet "
+                     "(PythonAnywhere gratis permite api.eia.gov pero no www.eia.gov), es eso."),
+        }))
 
     revisadas = [r for r in resultados if r["revisiones"]]
     bloques.append(("heading", {"title": "Cómo se armó este informe"}))

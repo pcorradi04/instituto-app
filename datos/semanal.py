@@ -194,21 +194,23 @@ def preparar_resultados(db, claves=None, desde_ts="9999"):
 
 def traer_publicaciones(db, silencioso=False):
     """Lo que la EIA escribió (artículos y perspectivas). Nunca rompe el
-    informe: si una fuente falla, queda anotada y se sigue."""
+    informe: si una fuente falla, queda anotada y se sigue.
+    Devuelve (publicaciones, fallas)."""
     try:
         publicaciones, fallas = pubs.traer()
     except Exception as e:                      # red, XML roto, lo que sea
         log(f"[ERROR] publicaciones: {type(e).__name__}: {e}", silencioso)
-        return []
+        return [], [("publicaciones", f"{type(e).__name__}: {e}")]
     for clave, motivo in fallas:
         log(f"[ERROR] publicaciones/{clave}: {motivo}", silencioso)
     nuevas = pubs.guardar(db, publicaciones)
     log(f"[ok] publicaciones: {len(publicaciones)} ({len(nuevas)} nuevas desde la última corrida)",
         silencioso)
-    return publicaciones
+    return publicaciones, fallas
 
 
-def armar_informe(resultados, fallas=(), db_blog=None, silencioso=False, publicaciones=()):
+def armar_informe(resultados, fallas=(), db_blog=None, silencioso=False, publicaciones=(),
+                  fallas_publicaciones=()):
     hoy = datetime.now(timezone.utc) - timedelta(hours=3)      # hora de Buenos Aires
     titulo = f"Seguimiento de datos EIA — {informe.fecha_larga(hoy)}"
     slug_base = f"datos-eia-{hoy.date().isoformat()}"
@@ -220,7 +222,8 @@ def armar_informe(resultados, fallas=(), db_blog=None, silencioso=False, publica
         dek += f", {informe.fmt_pct(s['ultimo'], s['hace_un_anio'])} contra un año antes"
     dek += "."
     bloques = informe.armar_bloques(resultados, hoy=hoy, con_fallas=fallas,
-                                    publicaciones=publicaciones)
+                                    publicaciones=publicaciones,
+                                    fallas_publicaciones=fallas_publicaciones)
     post_id, slug, accion = informe.armar_borrador(
         bloques, titulo=titulo, slug_base=slug_base,
         eyebrow="Seguimiento de datos; EIA; Estados Unidos",
@@ -261,15 +264,16 @@ def correr(claves=None, db_blog=None, datos_db=None, demo=False, completo=False,
                 (fallas[0][1] if fallas else "La EIA no respondió."))
         del_informe = claves if claves_informe is LAS_TRAIDAS else claves_informe
         resultados = preparar_resultados(db, del_informe, desde_ts)
-        publicaciones = []
+        publicaciones, fallas_pub = [], []
         if con_publicaciones and not demo:
             almacen.tarea_paso(db, tarea_id, "leyendo lo que publicó la EIA")
-            publicaciones = traer_publicaciones(db, silencioso)
+            publicaciones, fallas_pub = traer_publicaciones(db, silencioso)
         if not resultados:
             raise eia_api.EIAError("No hay datos guardados para armar el informe.")
         post_id, slug, accion = armar_informe(resultados, fallas, db_blog=db_blog,
                                               silencioso=silencioso,
-                                              publicaciones=publicaciones)
+                                              publicaciones=publicaciones,
+                                              fallas_publicaciones=fallas_pub)
         return post_id, slug, accion, fallas
     finally:
         if propia:
@@ -401,9 +405,11 @@ def main(argv=None):
             if not resultados:
                 log("[ERROR] no hay datos guardados para armar el informe.", args.silencioso)
                 return 1
-            publicaciones = [] if args.sin_publicaciones else traer_publicaciones(db, args.silencioso)
+            publicaciones, fallas_pub = [], []
+            if not args.sin_publicaciones:
+                publicaciones, fallas_pub = traer_publicaciones(db, args.silencioso)
             armar_informe(resultados, [], db_blog=args.db, silencioso=args.silencioso,
-                          publicaciones=publicaciones)
+                          publicaciones=publicaciones, fallas_publicaciones=fallas_pub)
             return 0
 
         try:
